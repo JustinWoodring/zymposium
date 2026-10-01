@@ -35,6 +35,14 @@ cleanup() {
     if [ "$code" != 0 ]; then
         printf '\n--- transcript ---\n' >&3 || :
         cat "$TRANSCRIPT" >&3 2>/dev/null || :
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            {
+                printf '### mock-e2e failure (exit %s)\n\n```text\n' "$code"
+                cat "$TRANSCRIPT"
+                printf '```\n'
+            } >>"$GITHUB_STEP_SUMMARY" || :
+        fi
+        printf '::error title=mock-e2e::failed (exit %s); transcript added to job summary\n' "$code" >&3 || :
     fi
     [ "${ZYM_KEEP:-}" = 1 ] || rm -rf "$WORK"
 }

@@ -79,9 +79,11 @@ zig fmt --check src build.zig
 ./scripts/mock-e2e.sh     # hermetic end-to-end suite (no network)
 ```
 
-CI additionally runs `shellcheck -s sh scripts/mock-e2e.sh`, and exercises the
-real installation path — `zest install` on every supported OS — on Linux,
-macOS, and Windows.
+CI runs ShellCheck and verifies installation through `zest install` on Linux.
+Unit tests, builds, format checks, and the hermetic end-to-end suite run on
+Linux, macOS, and Windows. Successful pushes to `main` publish the site to
+`gh-pages`; set repository Settings → Pages → Build and deployment → Source to
+**Deploy from a branch**, `gh-pages` / `/`, once.
 
 ## Code style
 

@@ -230,14 +230,28 @@ pub fn inspectPath(gpa: std.mem.Allocator, io: Io, path: []const u8) Existing {
     return .{ .symlink = target };
 }
 
-/// True when `link_path` is a symlink whose raw target is `target_path`.
+/// True when a symlink resolves to `target_path`.
 pub fn linksTo(io: Io, link_path: []const u8, target_path: []const u8) bool {
-    const e = inspectPath(std.heap.page_allocator, io, link_path);
-    defer e.deinit(std.heap.page_allocator);
+    const gpa = std.heap.page_allocator;
+    const e = inspectPath(gpa, io, link_path);
+    defer e.deinit(gpa);
     return switch (e) {
-        .symlink => |t| std.mem.eql(u8, t, target_path),
+        .symlink => |raw_target| std.mem.eql(u8, raw_target, target_path) or
+            resolvesTo(io, gpa, link_path, target_path),
         else => false,
     };
+}
+
+/// Resolve the link and requested target only when their path spellings differ.
+/// This preserves the fast path for ordinary symlinks while treating aliases as
+/// the same target.
+fn resolvesTo(io: Io, gpa: std.mem.Allocator, link_path: []const u8, target_path: []const u8) bool {
+    const cwd = Io.Dir.cwd();
+    const actual = cwd.realPathFileAlloc(io, link_path, gpa) catch return false;
+    defer gpa.free(actual);
+    const expected = cwd.realPathFileAlloc(io, target_path, gpa) catch return false;
+    defer gpa.free(expected);
+    return std.mem.eql(u8, actual, expected);
 }
 
 /// Recursively copy `src` to `dst`. Symlinks inside the tree are recreated as
@@ -363,7 +377,12 @@ test "materialize creates the parent and uses the supported link mode" {
     // Unix-like hosts use a symlink. Windows without symlink privileges uses
     // the documented copy fallback; both must create a usable skill directory.
     switch (mode) {
-        .symlink => try std.testing.expect(linksTo(io, link, src)),
+        .symlink => {
+            try std.testing.expect(linksTo(io, link, src));
+            const alias = try std.fs.path.join(gpa, &.{ root, ".", "skill" });
+            defer gpa.free(alias);
+            try std.testing.expect(linksTo(io, link, alias));
+        },
         .copy => try std.testing.expect(dirExistsForTest(io, link)),
     }
 

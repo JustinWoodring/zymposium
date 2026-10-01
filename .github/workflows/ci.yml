@@ -106,8 +106,7 @@ jobs:
           find "$XDG_DATA_HOME" -maxdepth 5 -type d -name skills -print -exec ls -la {} \; || true
           "$XDG_DATA_HOME/zest/bin/zymposium" doctor 2>&1 || true
 
-  # Publish the static site as the root of the gh-pages branch. In GitHub
-  # repository settings select Pages -> Deploy from a branch -> gh-pages / root.
+  # Publish the site to gh-pages; configure Pages to deploy that branch at root.
   pages:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [test, e2e, shellcheck, install-via-zest]
