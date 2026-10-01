@@ -291,7 +291,16 @@ if [ -L "$CONFLICT_PATH" ]; then
     printf 'my own notes\n' >"$CONFLICT_PATH/NOTES.md"
 
     assert_fails "sync reports the conflict" "$ZYM" sync
-    assert_grep "conflict is named" "conflict: $CONFLICT_PATH" "$LOG"
+    expected_conflict=$CONFLICT_PATH
+    conflict_log=$LOG
+    if [ -n "$WIN" ]; then
+        expected_conflict=$(printf '%s\n' "$CONFLICT_PATH" | tr '\\' '/')
+        conflict_log="$WORK/path-normalized.log"
+        tr '\\' '/' <"$LOG" >"$conflict_log"
+    fi
+    grep -Fq -- "conflict: $expected_conflict" "$conflict_log" ||
+        fail "conflict is named" "path '$expected_conflict' not found: $(cat "$LOG")"
+    ok "conflict is named"
     assert_grep "conflict names both parties" "is held by" "$LOG"
     [ -f "$CONFLICT_PATH/NOTES.md" ] ||
         fail "conflict leaves user data alone" "NOTES.md was deleted by a conflicting sync"
