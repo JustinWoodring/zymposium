@@ -60,15 +60,17 @@ jobs:
   install-via-zest:
     needs: test
     runs-on: ubuntu-latest
-    env:
-      HOME: ${{ runner.temp }}/zymposium-home
-      XDG_DATA_HOME: ${{ runner.temp }}/zymposium-data
-      XDG_CONFIG_HOME: ${{ runner.temp }}/zymposium-config
     steps:
       - uses: actions/checkout@v4
       - uses: mlugg/setup-zig@v2
         with:
           version: ${{ env.ZIG_VERSION }}
+      - name: Isolate HOME and XDG data
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.ci/home" "$GITHUB_WORKSPACE/.ci/xdg/data" "$GITHUB_WORKSPACE/.ci/xdg/config"
+          echo "HOME=$GITHUB_WORKSPACE/.ci/home" >> "$GITHUB_ENV"
+          echo "XDG_DATA_HOME=$GITHUB_WORKSPACE/.ci/xdg/data" >> "$GITHUB_ENV"
+          echo "XDG_CONFIG_HOME=$GITHUB_WORKSPACE/.ci/xdg/config" >> "$GITHUB_ENV"
       - name: Install zest
         run: |
           mkdir -p "$HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
@@ -104,40 +106,34 @@ jobs:
           find "$XDG_DATA_HOME" -maxdepth 5 -type d -name skills -print -exec ls -la {} \; || true
           "$XDG_DATA_HOME/zest/bin/zymposium" doctor 2>&1 || true
 
+  # Publish the static site as the root of the gh-pages branch. In GitHub
+  # repository settings select Pages -> Deploy from a branch -> gh-pages / root.
   pages:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test, e2e]
+    needs: [test, e2e, shellcheck, install-via-zest]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    continue-on-error: true
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - name: Publish to gh-pages
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          set +e
-          {
-            rm -rf pages-out
-            mkdir pages-out
-            cp README.md CONTRIBUTING.md CONTRIBUTORS LICENSE pages-out/
-            cp www/index.html pages-out/index.html
-            cp assets/logo.svg pages-out/logo.svg
-            touch pages-out/.nojekyll
-            cd pages-out
-            git init -q -b gh-pages
-            git config user.name "zymposium-pages-bot"
-            git config user.email "bot@users.noreply.github.com"
-            git add -A
-            git commit -qm "publish (${GITHUB_SHA})"
-            git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
-          } > /tmp/pages.log 2>&1
-          rc=$?
-          set -e
-          cat /tmp/pages.log
-          if [ "$rc" != 0 ]; then
-            url=$(curl -s --data-binary @/tmp/pages.log https://paste.rs || true)
-            echo "::error::pages publish failed (rc=$rc); full log: $url"
-            exit "$rc"
-          fi
+          set -eu
+          rm -rf pages-out
+          mkdir pages-out
+          cp README.md CONTRIBUTING.md CONTRIBUTORS LICENSE pages-out/
+          cp www/index.html pages-out/index.html
+          cp assets/logo.svg pages-out/logo.svg
+          touch pages-out/.nojekyll
+          cd pages-out
+          git init -q -b gh-pages
+          git config user.name "zymposium-pages-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -A
+          git commit -qm "publish (${GITHUB_SHA})"
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:gh-pages
