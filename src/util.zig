@@ -351,12 +351,12 @@ test "materialize creates the parent and uses the supported link mode" {
     try dir.createDirPath(io, "src/skill");
     const root = try dir.realPathFileAlloc(io, "src", gpa);
     defer gpa.free(root);
-    const src = try std.fmt.allocPrint(gpa, "{s}/skill", .{root});
+    const src = try std.fs.path.join(gpa, &.{ root, "skill" });
     defer gpa.free(src);
     try dir.writeFile(io, .{ .sub_path = "src/skill/SKILL.md", .data = "body" });
 
     // The agent skills directory does not exist yet: this is a first run.
-    const link = try std.fmt.allocPrint(gpa, "{s}/.claude/skills/k", .{root});
+    const link = try std.fs.path.join(gpa, &.{ root, ".claude", "skills", "k" });
     defer gpa.free(link);
 
     const mode = try materialize(gpa, io, src, link, .auto);
@@ -391,11 +391,11 @@ test "materialize in copy mode produces a real directory" {
     try dir.createDirPath(io, "src/skill");
     const root = try dir.realPathFileAlloc(io, "src", gpa);
     defer gpa.free(root);
-    const src = try std.fmt.allocPrint(gpa, "{s}/skill", .{root});
+    const src = try std.fs.path.join(gpa, &.{ root, "skill" });
     defer gpa.free(src);
     try dir.writeFile(io, .{ .sub_path = "src/skill/SKILL.md", .data = "body" });
 
-    const link = try std.fmt.allocPrint(gpa, "{s}/.codex/skills/k", .{root});
+    const link = try std.fs.path.join(gpa, &.{ root, ".codex", "skills", "k" });
     defer gpa.free(link);
 
     const mode = try materialize(gpa, io, src, link, .copy);
@@ -403,7 +403,7 @@ test "materialize in copy mode produces a real directory" {
     try std.testing.expect(!linksTo(io, link, src));
     try std.testing.expectEqual(Existing.directory, inspectPath(gpa, io, link));
 
-    const copied_path = try std.fmt.allocPrint(gpa, "{s}/.codex/skills/k/SKILL.md", .{root});
+    const copied_path = try std.fs.path.join(gpa, &.{ root, ".codex", "skills", "k", "SKILL.md" });
     defer gpa.free(copied_path);
     const copied = try readFileAlloc(Io.Dir.cwd(), io, gpa, copied_path);
     defer gpa.free(copied);

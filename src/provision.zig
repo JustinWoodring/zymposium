@@ -477,7 +477,7 @@ test "decide never clobbers a path the user replaced" {
 
     const child = struct {
         fn make(g: std.mem.Allocator, base: [:0]const u8, name: []const u8) ![]u8 {
-            return std.fmt.allocPrint(g, "{s}/{s}", .{ base, name });
+            return std.fs.path.join(g, &.{ base, name });
         }
     };
     const skill_src = try child.make(gpa, root, "skill");
@@ -594,9 +594,9 @@ test "different providers can ship the same skill name" {
     const root_a = abs;
     const root_b = try dir.realPathFileAlloc(io, "pkg-b", gpa);
     defer gpa.free(root_b);
-    const path_a = try std.fmt.allocPrint(gpa, "{s}/skills/common", .{root_a});
+    const path_a = try std.fs.path.join(gpa, &.{ root_a, "skills", "common" });
     defer gpa.free(path_a);
-    const path_b = try std.fmt.allocPrint(gpa, "{s}/skills/common", .{root_b});
+    const path_b = try std.fs.path.join(gpa, &.{ root_b, "skills", "common" });
     defer gpa.free(path_b);
 
     var cfg = try @import("config.zig").Config.parse(gpa,

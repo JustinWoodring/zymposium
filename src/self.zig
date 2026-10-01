@@ -163,13 +163,13 @@ test "discoverZestRoot finds zest's staged self source and tolerates absence" {
 
     const root = try dir.realPathFileAlloc(io, "zest", gpa);
     defer gpa.free(root);
-    const src = try std.fmt.allocPrint(gpa, "{s}/self/src", .{root});
+    const src = try std.fs.path.join(gpa, &.{ root, "self", "src" });
     defer gpa.free(src);
     const found = (try discoverZestRoot(gpa, io, root)).?;
     defer gpa.free(found);
     try std.testing.expectEqualStrings(src, found);
 
-    const no_zest = try std.fmt.allocPrint(gpa, "{s}/missing-zest", .{root});
+    const no_zest = try std.fs.path.join(gpa, &.{ root, "missing-zest" });
     defer gpa.free(no_zest);
     try std.testing.expect((try discoverZestRoot(gpa, io, no_zest)) == null);
 }
