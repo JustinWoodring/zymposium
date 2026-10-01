@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 64 64" role="img" aria-label="zymposium logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#131024"/>
+      <stop offset="1" stop-color="#1e1a33"/>
+    </linearGradient>
+    <linearGradient id="z" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c4b5fd"/>
+      <stop offset="1" stop-color="#7c6cf0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- A block Z, the sibling of zest's: the skill directory a package ships,
+       linked into the agent's. -->
+  <path d="M14 14 H50 V23 H43 L24 41 H50 V50 H14 V41 H21 L40 23 H14 Z" fill="url(#z)"/>
+  <!-- The linked node, where zest has a plain dot. -->
+  <circle cx="50" cy="14" r="4.5" fill="#a78bfa"/>
+</svg>

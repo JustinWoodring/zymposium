@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>zymposium — agent skills for Zig projects and zest tools</title>
+<meta name="description" content="zymposium discovers the skills a Zig package ships and links them into Claude Code, Codex, and any .agent skills directory. Works on its own; pairs with zest for tool skills.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --panel: #0f1318;
+    --panel-2: #131922;
+    --line: #1d242e;
+    --line-2: #2a323e;
+    --text: #e9ecef;
+    --dim: #838d9c;
+    --faint: #5b6472;
+    --accent: #8b7cf6;   /* zymposium violet */
+    --accent-2: #c4b5fd; /* zymposium light */
+    --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 28px; }
+  .kicker { font: 600 11px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+  .kicker .num { color: var(--faint); margin-right: 10px; }
+
+  /* ---- chrome ---- */
+  header.site { position: sticky; top: 0; z-index: 20; background: rgba(10,12,15,.82); backdrop-filter: blur(10px) saturate(140%); border-bottom: 1px solid var(--line); }
+  header.site .wrap { display: flex; align-items: center; gap: 11px; height: 58px; }
+  header.site img { width: 26px; height: 26px; border-radius: 7px; flex: none; }
+  header.site .word { font: 700 16px var(--mono); letter-spacing: .02em; white-space: nowrap; }
+  header.site nav { margin-left: auto; display: flex; gap: 22px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  header.site nav a { font: 500 13.5px var(--mono); color: var(--dim); white-space: nowrap; }
+  header.site nav a:hover { color: var(--text); text-decoration: none; }
+  header.site nav a.zen { color: var(--accent); }
+
+  /* ---- hero ---- */
+  .hero { padding: 74px 0 10px; }
+  .hero .row { display: flex; align-items: flex-start; gap: 26px; }
+  .hero .row > div { min-width: 0; }
+  .hero .mark { width: 92px; height: 92px; border-radius: 22px; flex: none; margin-top: 4px; }
+  .hero h1 { font-size: clamp(38px, 6vw, 58px); line-height: 1.02; letter-spacing: -.02em; font-weight: 700; }
+  .hero h1 .z { color: var(--accent); }
+  .hero .lede { margin-top: 14px; max-width: 620px; color: var(--dim); font-size: 18px; }
+  .hero .lede b { color: var(--text); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+  .chip { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 999px; font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+  .chip.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line-2)); }
+
+  /* ---- wordmark ---- */
+  pre.logo { margin-top: 30px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; font: clamp(8px, 2.2vw, 13px)/1.35 var(--mono); color: var(--accent-2); overflow-x: auto; }
+
+  /* ---- install ---- */
+  .installs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 30px; }
+  .inst { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px 18px; min-width: 0; }
+  .inst .os { font: 600 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+  .inst .cmd { display: block; margin: 12px 0 10px; background: #07090c; border: 1px solid var(--line); border-radius: 8px; padding: 12px 13px; font: 13px/1.5 var(--mono); color: #e4dfff; white-space: pre; overflow-x: auto; }
+  .inst .note { font-size: 13px; color: var(--dim); }
+  .notes { margin-top: 16px; color: var(--faint); font-size: 13px; max-width: 640px; }
+  .notes code, .body code, .lead code, .lede code, .inst .note code, td code { background: #131922; border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font: 12.5px var(--mono); color: #e4dfff; }
+  .notes a { color: var(--dim); text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ---- sections ---- */
+  section { padding: 46px 0 6px; border-top: 1px solid var(--line); margin-top: 46px; }
+  section:first-of-type { border-top: 0; }
+  section h2 { font-size: 26px; letter-spacing: -.015em; font-weight: 650; margin: 10px 0 6px; }
+  section h3 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin: 30px 0 12px; }
+  .lead { color: var(--dim); max-width: 660px; margin-bottom: 22px; }
+  .body { color: var(--dim); max-width: 660px; }
+  .body p { margin-top: 12px; }
+
+  pre.term { background: #07090c; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; font: 13.5px/1.75 var(--mono); color: #e4dfff; overflow-x: auto; }
+  pre.term .p { color: var(--accent); }
+  pre.term .c { color: var(--faint); }
+
+  /* ---- tables ---- */
+  table.checks { width: 100%; border-collapse: collapse; }
+  table.checks th, table.checks td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.checks th { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  table.checks td:first-child { white-space: nowrap; font: 13px var(--mono); color: var(--text); }
+  table.checks td:last-child { color: var(--dim); }
+  table.checks .opt { color: var(--faint); }
+
+  /* ---- spec list (why), no cards ---- */
+  .specs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 40px; }
+  .specs .row { display: flex; gap: 18px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .specs .row .k { flex: none; width: 148px; font: 600 12.5px var(--mono); letter-spacing: .04em; color: var(--accent); }
+  .specs .row .d { color: var(--dim); font-size: 14.5px; }
+
+  .note { margin-top: 30px; background: var(--panel); border: 1px solid var(--line-2); border-left: 3px solid var(--accent); border-radius: 10px; padding: 16px 18px; color: var(--dim); font-size: 14.5px; }
+  .note b { color: var(--text); font-weight: 600; }
+  .note + .note { margin-top: 14px; }
+
+  footer { border-top: 1px solid var(--line); margin-top: 60px; padding: 26px 0 44px; color: var(--faint); font: 13px var(--mono); }
+  footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  footer a { color: var(--dim); }
+
+  @media (max-width: 760px) {
+    .installs, .specs { grid-template-columns: minmax(0, 1fr); }
+    .hero { padding-top: 44px; }
+    .hero .row { flex-direction: column; gap: 18px; }
+    .hero .mark { width: 72px; height: 72px; }
+    .hero .lede { font-size: 17px; }
+    header.site nav { gap: 14px; }
+    header.site nav a { font-size: 12px; }
+    table.checks td:first-child { white-space: normal; }
+    .specs .row .k { width: 116px; }
+  }
+  @media (max-width: 520px) {
+    /* Two rows instead of a truncated, scrollable nav: brand above, links
+       below, nothing cut off. */
+    html { scroll-padding-top: 104px; }
+    header.site .wrap { flex-wrap: wrap; height: auto; padding-top: 10px; padding-bottom: 10px; row-gap: 6px; }
+    header.site nav { margin-left: 0; width: 100%; overflow-x: visible; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <img src="logo.svg" alt="zymposium logo">
+    <span class="word">zymposium</span>
+    <nav>
+      <a href="#install">Install</a>
+      <a href="#how">How it works</a>
+      <a href="#agents">Agents</a>
+      <a class="zen" href="https://github.com/JustinWoodring/zest">zest</a>
+      <a href="https://github.com/JustinWoodring/zymposium">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="row">
+      <img class="mark" src="logo.svg" alt="zymposium logo">
+      <div>
+        <h1><span class="z">z</span>ymposium</h1>
+        <p class="lede"><b>Agent skills for Zig projects and CLI tools.</b> A package declares
+        <code>skills/&lt;name&gt;/SKILL.md</code>; zymposium links it into every agent that should
+        see it &mdash; and never touches the ones you wrote yourself. Install it with
+        <a href="https://github.com/JustinWoodring/zest">zest</a>, or build it yourself.</p>
+        <div class="chips">
+          <span class="chip on">Zig 0.16</span>
+          <span class="chip on">zest install</span>
+          <span class="chip">Also builds standalone</span>
+          <span class="chip">Claude Code &middot; Codex &middot; .agent</span>
+          <span class="chip">Linux &middot; macOS &middot; Windows</span>
+        </div>
+      </div>
+    </div>
+<pre class="logo"> ███████╗ ██╗   ███╗███╗   ██╗██████╗ ████████╗██╗   ██╗███╗   ██╗
+ ██╔════╝ ██║   ██║████╗  ██║██╔══██╗╚══██╔══╝██║   ██║████╗  ██║
+ ███████╗ ██║   ██║██╔██╗ ██║███████║   ██║   ██║   ██║██╔██╗ ██║
+ ╚════██║ ██║   ██║██║╚██╗██║██╔══██║   ██║   ██║   ██║██║╚██╗██║
+ ███████║ ╚██████╔╝██║ ╚████║██║  ██║   ██║   ╚██████╔╝██║ ╚████║
+ ╚══════╝  ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝    ╚═══╝ ╚═╝  ╚═══╝</pre>
+  </div>
+
+  <section id="install">
+    <div class="kicker"><span class="num">01</span>Install</div>
+    <h2>One command, via zest</h2>
+    <div class="installs">
+      <div class="inst">
+        <div class="os">Recommended</div>
+        <code class="cmd">zest install JustinWoodring/zymposium</code>
+        <div class="note"><a href="https://github.com/JustinWoodring/zest">zest</a> builds it in ReleaseSafe with your own toolchain, puts it on <code>PATH</code>, and upgrades it with <code>zest update zymposium</code> &mdash; the same as every other tool you manage.</div>
+      </div>
+      <div class="inst">
+        <div class="os">Or build it yourself</div>
+        <code class="cmd">git clone https://github.com/JustinWoodring/zymposium
+cd zymposium &amp;&amp; zig build</code>
+        <div class="note">zymposium is a single self-contained binary and works fully standalone: no root, no package manager, no <a href="https://github.com/JustinWoodring/zest">zest</a>. Project dependency skills and <code>zymposium add</code> both work without it.</div>
+      </div>
+    </div>
+    <p class="notes">With zest you get one extra source &mdash; the tools it manages &mdash; whose skills
+    refresh automatically whenever you update the tool. Config lives in
+    <code>$XDG_CONFIG_HOME/zymposium/config.json</code>, state and clones in
+    <code>$XDG_DATA_HOME/zymposium</code>.</p>
+  </section>
+
+  <section id="use">
+    <div class="kicker"><span class="num">02</span>Use</div>
+    <h2>init, sync, look</h2>
+    <p class="lead">Run <code>zymposium sync</code> from anywhere. Inside a Zig project it walks that
+    project's dependency graph; outside one it still provisions packages you added with
+    <code>zymposium add</code>.</p>
+<pre class="term"><span class="p">$</span> zymposium init
+<span class="p">$</span> zymposium sync
+linked 6, updated 0, unchanged 0, removed 0
+<span class="p">$</span> zymposium list
+<span class="c"># SKILL        PROVIDER  VERSION  AGENTS             DESCRIPTION</span>
+<span class="c"># dep-a-skill  dep-a    1220-000  claude,codex,agent  Skill shipped by dep-a</span>
+<span class="p">$</span> zymposium doctor
+all provisioned skills are healthy</pre>
+  </section>
+
+  <section id="how">
+    <div class="kicker"><span class="num">03</span>How it works</div>
+    <h2>A skills directory is the whole contract</h2>
+    <p class="lead">Every immediate subdirectory of a package's <code>skills/</code> that contains a
+    <code>SKILL.md</code> is one skill, named after the directory. Nothing else is required, so any
+    repository can ship skills by adding one directory.</p>
+<pre class="term">my-package/
+├── build.zig.zon
+└── skills/
+    ├── deploy/
+    │   └── SKILL.md      <span class="c">→ linked as ~/.claude/skills/my-package/deploy</span>
+    └── review/
+        └── SKILL.md      <span class="c">→ linked as ~/.claude/skills/my-package/review</span>
+    <h3>Three sources, in this order</h3>
+    <table class="checks">
+      <tr><th>Source</th><th>Where it comes from</th></tr>
+      <tr><td>project_dep</td><td>Dependencies of the current <code>build.zig.zon</code> graph, followed transitively. Git dependencies are cloned into the cache; path dependencies are read in place. <span class="opt">No zest needed.</span></td></tr>
+      <tr><td>package</td><td>Anything you registered yourself with <code>zymposium add &lt;path|url&gt;</code>. <span class="opt">No zest needed.</span></td></tr>
+      <tr><td>zest_tool</td><td>A CLI tool managed by <a href="https://github.com/JustinWoodring/zest">zest</a> whose staged clone ships a <code>skills/</code> directory. The only source that requires zest: there is no manifest of installed CLI tools without a tool manager.</td></tr>
+    </table>
+    <p class="note"><b>zymposium works on its own.</b> Project dependencies and added packages are the
+    whole job, and neither involves another tool. Installing
+    <a href="https://github.com/JustinWoodring/zest">zest</a> adds one more source: the tools it
+    manages, whose skills refresh automatically when you update them. Everything else behaves the
+    same either way.</p>
+    <h3>Commands</h3>
+    <table class="checks">
+      <tr><th>Command</th><th>What it does</th></tr>
+      <tr><td>zymposium init</td><td>Writes a default <code>config.json</code> and prepares the global skill directories.</td></tr>
+      <tr><td>zymposium sync</td><td>Discovers every source and reconciles the links. <code>--tool</code> scopes a run to one provider, <code>--force</code> takes over a path zymposium does not own, <code>--offline</code> uses only what is cached.</td></tr>
+      <tr><td>zymposium list</td><td>Every provisioned skill, where it came from, and the command that refreshes it.</td></tr>
+      <tr><td>zymposium sources</td><td>Every package that ships skills, how many it offers, and how many are already provisioned.</td></tr>
+      <tr><td>zymposium add / remove</td><td>Register a package, or unlink one provisioned skill.</td></tr>
+      <tr><td>zymposium update [skill]</td><td>Re-fetch the sources zymposium owns and sync again.</td></tr>
+      <tr><td>zymposium doctor</td><td>Check every recorded link against the filesystem. Exits non-zero when something needs repair.</td></tr>
+      <tr><td>zymposium agents</td><td>List the known agents and their skill directories.</td></tr>
+    </table>
+    <p class="notes">Every command takes <code>--json</code> where it makes sense (<code>list</code>,
+    <code>sources</code>, <code>doctor</code>, <code>sync</code>), so a package manager can consume the
+    result instead of scraping text.</p>
+  </section>
+
+  <section id="agents">
+    <div class="kicker"><span class="num">04</span>Agents</div>
+    <h2>Three boundaries, enabled by default</h2>
+    <p class="lead">An agent is just a directory that holds skills. Narrow the set in
+    <code>config.json</code>, or run <code>zymposium agents</code> to see what is enabled right now.</p>
+    <table class="checks">
+      <tr><th>Agent</th><th>Where its skills live</th></tr>
+      <tr><td>Claude Code</td><td><code>~/.claude/skills</code> and <code>&lt;project&gt;/.claude/skills</code></td></tr>
+      <tr><td>Codex (OpenAI)</td><td><code>~/.codex/skills</code> and <code>&lt;project&gt;/.codex/skills</code></td></tr>
+      <tr><td>Generic .agent</td><td><code>~/.agent/skills</code> and <code>&lt;project&gt;/.agent/skills</code></td></tr>
+    </table>
+    <p class="body"><p>Project scope is only used when there is a project: run <code>sync</code> from a
+    directory with a <code>build.zig.zon</code>, or point at one with <code>--project &lt;dir&gt;</code>.
+    Pruning is scoped too, so a run that touches one project leaves every other project's links
+    alone.</p></p>
+  </section>
+
+  <section id="safety">
+    <div class="kicker"><span class="num">05</span>Safety</div>
+    <h2>It only ever removes what it created</h2>
+    <div class="specs">
+      <div class="row"><div class="k">Ownership</div><div class="d">zymposium records every path it writes in <code>state.json</code> and deletes nothing that is not in there. A hand-written skill beside a provisioned one is never touched.</div></div>
+      <div class="row"><div class="k">Symlinks</div><div class="d">Skills are linked, not copied, so a change to <code>SKILL.md</code> is visible to the agent immediately. Where symlinks are refused, it falls back to a copy.</div></div>
+      <div class="row"><div class="k">Namespaces</div><div class="d">Every target is <code>&lt;skills&gt;/&lt;provider&gt;/&lt;skill&gt;</code>. Two packages may ship the same skill name without colliding; use <code>provider/skill</code> to update or remove one when a bare name is ambiguous.</div></div>
+      <div class="row"><div class="k">--force</div><div class="d">Explicit opt-in to taking over a path zymposium does not own. Without it, a conflict is a message, not a deletion.</div></div>
+    </div>
+    <p class="note"><b>Never deletes a path it did not create.</b> If a link goes missing or points at
+    the wrong place, <code>zymposium doctor</code> names it and <code>zymposium sync</code> repairs it.</p>
+  </section>
+
+  <section id="more">
+    <div class="kicker"><span class="num">06</span>More</div>
+    <h2>Read the code</h2>
+    <div class="body">
+      <p>The <a href="https://github.com/JustinWoodring/zymposium">repository</a> has the
+      <a href="https://github.com/JustinWoodring/zymposium/blob/main/README.md">README</a> with the full
+      command reference, a <a href="https://github.com/JustinWoodring/zymposium/blob/main/CONTRIBUTING.md">CONTRIBUTING</a>
+      guide, and an end-to-end harness (<code>scripts/mock-e2e.sh</code>) that runs with no network at
+      all. MIT licensed.</p>
+      <p>zymposium is a separate project from <a href="https://github.com/JustinWoodring/zest">zest</a>,
+      by the same author, and depends on nothing. zymposium provisions the skills your dependencies and
+      added packages ship; if you also use zest, it provisions the skills of the CLI tools zest manages,
+      straight from that tool's staged clone.</p>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>zymposium &middot; MIT &middot; &copy; 2026 Justin Woodring</span>
+    <span><a href="https://github.com/JustinWoodring/zymposium">GitHub</a> &middot;
+          <a href="https://github.com/JustinWoodring/zymposium/blob/main/README.md">README</a> &middot;
+          <a href="https://github.com/JustinWoodring/zymposium/blob/main/CONTRIBUTING.md">Contributing</a> &middot;
+          <a href="https://github.com/JustinWoodring/zest">zest</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,143 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  ZIG_VERSION: "0.16.0"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - name: Unit tests
+        run: zig build test
+      - name: Build
+        run: zig build
+      - name: Format check
+        run: zig fmt --check src build.zig
+
+  e2e:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - name: Build
+        run: zig build
+      - name: Hermetic end-to-end suite
+        shell: bash
+        run: ./scripts/mock-e2e.sh
+
+  shellcheck:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: shellcheck -s sh scripts/mock-e2e.sh
+
+  install-via-zest:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      HOME: ${{ runner.temp }}/zymposium-home
+      XDG_DATA_HOME: ${{ runner.temp }}/zymposium-data
+      XDG_CONFIG_HOME: ${{ runner.temp }}/zymposium-config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - name: Install zest
+        run: |
+          mkdir -p "$HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
+          export ZEST_DATA="$XDG_DATA_HOME/zest"
+          curl -fsSL https://justinwoodring.github.io/zest/install.sh | sh
+          "$ZEST_DATA/bin/zest" --version
+      - name: Create a local package remote with a default branch
+        run: |
+          set -eu
+          mkdir -p .ci/zymposium
+          git archive HEAD | tar -x -C .ci/zymposium
+          git -C .ci/zymposium init -q -b main
+          git -C .ci/zymposium add -A
+          git -C .ci/zymposium -c user.email=ci@example.test -c user.name=ci commit -qm initial
+      - name: Install zymposium through zest
+        run: |
+          export ZEST_DATA="$XDG_DATA_HOME/zest"
+          "$ZEST_DATA/bin/zest" install "file://$GITHUB_WORKSPACE/.ci/zymposium"
+          "$ZEST_DATA/bin/zest" list
+      - name: Verify installed binary and self-skills
+        run: |
+          export ZEST_DATA="$XDG_DATA_HOME/zest"
+          ZYM="$ZEST_DATA/bin/zymposium"
+          "$ZYM" --version
+          "$ZYM" init
+          "$ZYM" sync
+          "$ZYM" doctor
+          test -L "$HOME/.claude/skills/zymposium/zymposium"
+          test -L "$HOME/.claude/skills/zest/zest"
+      - name: Report installed paths on failure
+        if: failure()
+        run: |
+          find "$XDG_DATA_HOME" -maxdepth 5 -type d -name skills -print -exec ls -la {} \; || true
+          "$XDG_DATA_HOME/zest/bin/zymposium" doctor 2>&1 || true
+
+  pages:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, e2e]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish to gh-pages
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          {
+            rm -rf pages-out
+            mkdir pages-out
+            cp README.md CONTRIBUTING.md CONTRIBUTORS LICENSE pages-out/
+            cp www/index.html pages-out/index.html
+            cp assets/logo.svg pages-out/logo.svg
+            touch pages-out/.nojekyll
+            cd pages-out
+            git init -q -b gh-pages
+            git config user.name "zymposium-pages-bot"
+            git config user.email "bot@users.noreply.github.com"
+            git add -A
+            git commit -qm "publish (${GITHUB_SHA})"
+            git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+          } > /tmp/pages.log 2>&1
+          rc=$?
+          set -e
+          cat /tmp/pages.log
+          if [ "$rc" != 0 ]; then
+            url=$(curl -s --data-binary @/tmp/pages.log https://paste.rs || true)
+            echo "::error::pages publish failed (rc=$rc); full log: $url"
+            exit "$rc"
+          fi
