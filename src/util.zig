@@ -386,6 +386,20 @@ test "materialize creates the parent and uses the supported link mode" {
             try std.testing.expect(linksTo(io, link, src));
             const alias = try std.fs.path.join(gpa, &.{ root, ".", "skill" });
             defer gpa.free(alias);
+            if (!linksTo(io, link, alias)) {
+                const existing = inspectPath(gpa, io, link);
+                defer existing.deinit(gpa);
+                switch (existing) {
+                    .symlink => |raw| {
+                        const raw_normalized = try std.fs.path.resolve(gpa, &.{raw});
+                        defer gpa.free(raw_normalized);
+                        const alias_normalized = try std.fs.path.resolve(gpa, &.{alias});
+                        defer gpa.free(alias_normalized);
+                        std.debug.print("raw={s}\nalias={s}\nraw normalized={s}\nalias normalized={s}\n", .{ raw, alias, raw_normalized, alias_normalized });
+                    },
+                    else => std.debug.print("link is not a symlink\n", .{}),
+                }
+            }
             try std.testing.expect(linksTo(io, link, alias));
         },
         .copy => try std.testing.expect(dirExistsForTest(io, link)),
