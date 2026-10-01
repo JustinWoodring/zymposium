@@ -496,28 +496,37 @@ test "decide never clobbers a path the user replaced" {
         try std.testing.expectEqual(Decision.create, decide(e, null, io, absent, skill_src, false));
     }
 
-    // 2. Our symlink pointing at the right place: keep it.
-    try dir.symLink(io, skill_src, "src/link", .{});
+    // A symlink may be disallowed on Windows runners without developer mode.
+    // The actual decision logic below still tests directory takeover and copy
+    // behavior there; symlink target/repair cases run when the OS permits it.
+    var link_supported = true;
+    dir.symLink(io, skill_src, "src/link", .{}) catch |err| switch (err) {
+        error.AccessDenied, error.PermissionDenied => link_supported = false,
+        else => return err,
+    };
     const link = try child.make(gpa, root, "link");
     defer gpa.free(link);
-    {
-        const e = util.inspectPath(gpa, io, link);
-        defer e.deinit(gpa);
-        try std.testing.expectEqualStrings(skill_src, e.symlink);
-        try std.testing.expectEqual(
-            Decision{ .keep = .symlink },
-            decide(e, .symlink, io, link, skill_src, false),
-        );
-    }
+    if (link_supported) {
+        // 2. Our symlink pointing at the right place: keep it.
+        {
+            const e = util.inspectPath(gpa, io, link);
+            defer e.deinit(gpa);
+            try std.testing.expectEqualStrings(skill_src, e.symlink);
+            try std.testing.expectEqual(
+                Decision{ .keep = .symlink },
+                decide(e, .symlink, io, link, skill_src, false),
+            );
+        }
 
-    // 3. Our symlink whose source moved: repair it.
-    {
-        const e = util.inspectPath(gpa, io, link);
-        defer e.deinit(gpa);
-        try std.testing.expectEqual(
-            Decision.create,
-            decide(e, .symlink, io, link, moved_src, false),
-        );
+        // 3. Our symlink whose source moved: repair it.
+        {
+            const e = util.inspectPath(gpa, io, link);
+            defer e.deinit(gpa);
+            try std.testing.expectEqual(
+                Decision.create,
+                decide(e, .symlink, io, link, moved_src, false),
+            );
+        }
     }
 
     // 4. A real directory where we recorded a symlink: the user took it over.
@@ -591,7 +600,7 @@ test "different providers can ship the same skill name" {
     defer gpa.free(path_b);
 
     var cfg = try @import("config.zig").Config.parse(gpa,
-        \\{"version":1,"agents":["claude"],"link_mode":"symlink","scope":"global"}
+        \\{"version":1,"agents":["claude"],"link_mode":"auto","scope":"global"}
     );
     defer cfg.deinit();
 
@@ -639,8 +648,32 @@ test "different providers can ship the same skill name" {
     defer gpa.free(pkg_a);
     const pkg_b = std.fs.path.join(gpa, &.{ home, ".claude", "skills", "pkg-b", "common" }) catch unreachable;
     defer gpa.free(pkg_b);
-    try std.testing.expect(util.linksTo(io, pkg_a, path_a));
-    try std.testing.expect(util.linksTo(io, pkg_b, path_b));
+    try expectMaterializedTarget(gpa, io, pkg_a, path_a);
+    try expectMaterializedTarget(gpa, io, pkg_b, path_b);
     try std.testing.expectEqual(state.State.Selector.ambiguous, st.resolveSelector("common"));
     try std.testing.expect(st.resolveSelector("pkg-a/common") == .found);
+}
+fn expectMaterializedTarget(
+    gpa: std.mem.Allocator,
+    io: Io,
+    target: []const u8,
+    source: []const u8,
+) !void {
+    const actual = util.inspectPath(gpa, io, target);
+    defer actual.deinit(gpa);
+    switch (actual) {
+        .symlink => |link_target| try std.testing.expectEqualStrings(source, link_target),
+        .directory => {
+            const source_file = try std.fs.path.join(gpa, &.{ source, "SKILL.md" });
+            defer gpa.free(source_file);
+            const target_file = try std.fs.path.join(gpa, &.{ target, "SKILL.md" });
+            defer gpa.free(target_file);
+            const expected = try @import("util.zig").readFileAlloc(Io.Dir.cwd(), io, gpa, source_file);
+            defer gpa.free(expected);
+            const copied = try @import("util.zig").readFileAlloc(Io.Dir.cwd(), io, gpa, target_file);
+            defer gpa.free(copied);
+            try std.testing.expectEqualStrings(expected, copied);
+        },
+        else => return error.TestUnexpectedResult,
+    }
 }

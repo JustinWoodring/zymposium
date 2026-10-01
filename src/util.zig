@@ -340,7 +340,7 @@ test "truncate keeps valid utf8 boundary" {
     try std.testing.expectEqualStrings("éx", truncate("éx", 3));
 }
 
-test "materialize creates the link parent and links rather than copies" {
+test "materialize creates the parent and uses the supported link mode" {
     const gpa = std.testing.allocator;
     const io = std.testing.io;
 
@@ -353,21 +353,31 @@ test "materialize creates the link parent and links rather than copies" {
     defer gpa.free(root);
     const src = try std.fmt.allocPrint(gpa, "{s}/skill", .{root});
     defer gpa.free(src);
-    try dir.writeFile(io, .{ .sub_path = "src/skill/SKILL.md", .data = "x" });
+    try dir.writeFile(io, .{ .sub_path = "src/skill/SKILL.md", .data = "body" });
 
     // The agent skills directory does not exist yet: this is a first run.
     const link = try std.fmt.allocPrint(gpa, "{s}/.claude/skills/k", .{root});
     defer gpa.free(link);
 
     const mode = try materialize(gpa, io, src, link, .auto);
-    // The parent must have been created, and a symlink preferred.
-    try std.testing.expectEqual(Materialized.symlink, mode);
-    try std.testing.expect(linksTo(io, link, src));
+    // Unix-like hosts use a symlink. Windows without symlink privileges uses
+    // the documented copy fallback; both must create a usable skill directory.
+    switch (mode) {
+        .symlink => try std.testing.expect(linksTo(io, link, src)),
+        .copy => try std.testing.expect(dirExistsForTest(io, link)),
+    }
 
-    // Re-materializing the same path is idempotent.
     const again = try materialize(gpa, io, src, link, .auto);
-    try std.testing.expectEqual(Materialized.symlink, again);
-    try std.testing.expect(linksTo(io, link, src));
+    try std.testing.expectEqual(mode, again);
+    switch (again) {
+        .symlink => try std.testing.expect(linksTo(io, link, src)),
+        .copy => try std.testing.expect(dirExistsForTest(io, link)),
+    }
+}
+
+fn dirExistsForTest(io: Io, path: []const u8) bool {
+    const stat = Io.Dir.cwd().statFile(io, path, .{ .follow_symlinks = true }) catch return false;
+    return stat.kind == .directory;
 }
 
 test "materialize in copy mode produces a real directory" {

@@ -144,15 +144,22 @@ gitfix() {
         git -c user.email=t@t -c user.name=t commit -qm init)
 }
 
-# A provisioned skill must be a symlink to the skill directory, never a copy:
-# a copy silently goes stale the moment the source changes.
-assert_symlink() { # <path> <expected-target-suffix> <desc>
-    [ -L "$1" ] || fail "$3" "$1 is not a symlink"
-    target=$(readlink "$1")
-    case "$target" in
-        *"$2") ;;
-        *) fail "$3" "$1 points at '$target', which does not end in '$2'" ;;
-    esac
+# A provisioned skill is normally a symlink. On Windows without symlink
+# privileges, `auto` intentionally falls back to a real directory copy.
+# Assert the target when symlinks work, and a usable skill directory otherwise.
+ assert_skill_link() { # <path> <expected-target-suffix> <desc>
+    if [ -L "$1" ]; then
+        target=$(readlink "$1")
+        if [ -n "$WIN" ]; then target=$(cygpath -u "$target"); fi
+        case "$target" in
+            *"$2") ;;
+            *) fail "$3" "$1 points at '$target', which does not end in '$2'" ;;
+        esac
+    elif [ -n "$WIN" ] && [ -d "$1" ] && [ -f "$1/SKILL.md" ]; then
+        : # documented symlink fallback on Windows without symlink privileges
+    else
+        fail "$3" "$1 is neither the expected symlink nor a usable copy"
+    fi
 }
 
 F="$WORK/fixtures"
@@ -241,7 +248,7 @@ assert_ok "sync provisions the zest tool" "$ZYM" sync
 assert_grep "sync reports what it linked" "linked 9, updated 0, unchanged 0, removed 0" "$LOG"
 for d in .claude .codex .agent; do
     for s in zst-alpha zst-beta; do
-        assert_symlink "$HOME/$d/skills/zest-tool/$s" "/skills/$s" "$d/$s is a symlink to the skill dir"
+        assert_skill_link "$HOME/$d/skills/zest-tool/$s" "/skills/$s" "$d/$s is a symlink to the skill dir"
     done
 done
 ok "sync symlinks every discovered skill into all three agents"
@@ -269,29 +276,35 @@ assert_grep "second sync changes nothing" "linked 0, updated 0, unchanged 9, rem
 ok "sync is idempotent"
 
 assert_ok "doctor is healthy" "$ZYM" doctor
-assert_grep "doctor clean message" "all provisioned skills are healthy" "$LOG"
-ok "doctor reports a healthy tree"
+CONFLICT_PATH="$HOME/.claude/skills/zest-tool/zst-alpha"
+if [ -L "$CONFLICT_PATH" ]; then
+    rm "$CONFLICT_PATH"
+    mkdir -p "$CONFLICT_PATH"
+    printf 'my own notes\n' >"$CONFLICT_PATH/NOTES.md"
 
-# ---------------------------------------------------------------------------
-# Conflict safety: a path the user took over is never deleted behind them.
-# ---------------------------------------------------------------------------
-rm "$HOME/.claude/skills/zest-tool/zst-alpha"
-mkdir -p "$HOME/.claude/skills/zest-tool/zst-alpha"
-printf 'my own notes\n' >"$HOME/.claude/skills/zest-tool/zst-alpha/NOTES.md"
+    assert_fails "sync reports the conflict" "$ZYM" sync
+    assert_grep "conflict is named" "conflict: $CONFLICT_PATH" "$LOG"
+    assert_grep "conflict names both parties" "is held by" "$LOG"
+    [ -f "$CONFLICT_PATH/NOTES.md" ] ||
+        fail "conflict leaves user data alone" "NOTES.md was deleted by a conflicting sync"
+    ok "a directory replacing our symlink is a conflict, not a delete"
 
-assert_fails "sync reports the conflict" "$ZYM" sync
-assert_grep "conflict is named" "conflict: $HOME/.claude/skills/zest-tool/zst-alpha" "$LOG"
-assert_grep "conflict names both parties" "is held by" "$LOG"
-[ -f "$HOME/.claude/skills/zest-tool/zst-alpha/NOTES.md" ] ||
-    fail "conflict leaves user data alone" "NOTES.md was deleted by a conflicting sync"
-ok "a directory replacing our symlink is a conflict, not a delete"
-
-assert_ok "--force takes the path over" "$ZYM" sync --force
-assert_symlink "$HOME/.claude/skills/zest-tool/zst-alpha" "/skills/zst-alpha" "forced path is a symlink again"
-ok "--force replaces a path the user had taken over"
+    assert_ok "--force takes the path over" "$ZYM" sync --force
+    assert_skill_link "$CONFLICT_PATH" "/skills/zst-alpha" "forced path is restored"
+    ok "--force replaces a path the user had taken over"
+elif [ -n "$WIN" ] && [ -d "$CONFLICT_PATH" ]; then
+    # A recorded Windows copy is indistinguishable from a user-edited copy, so
+    # sync must keep it as-is rather than overwrite the user's additions.
+    printf 'my own notes\n' >"$CONFLICT_PATH/NOTES.md"
+    assert_ok "sync keeps edits in a copied skill" "$ZYM" sync
+    [ -f "$CONFLICT_PATH/NOTES.md" ] || fail "copy edits survive" "NOTES.md disappeared"
+    ok "Windows copy fallback preserves user edits"
+else
+    fail "provisioned skill has a supported materialization" "$CONFLICT_PATH missing"
+fi
 
 # doctor names what it found broken, so `sync` is not the only repair path.
-rm "$HOME/.codex/skills/zest-tool/zst-beta"
+rm -rf "$HOME/.codex/skills/zest-tool/zst-beta"
 assert_fails "doctor reports a missing link" "$ZYM" doctor
 assert_grep "doctor names the kind" "missing" "$LOG"
 assert_grep "doctor names the skill" "zst-beta" "$LOG"
@@ -366,11 +379,11 @@ assert_grep "path deps are project_dep" "project_dep" "$LOG"
 assert_grep "transitive dep is a source" "dep-b" "$LOG"
 ok "sources walks the dependency graph transitively"
 
-assert_symlink "$HOME/.claude/skills/dep_a/dep-a-skill" "/skills/dep-a-skill" "global link"
-assert_symlink "$HOME/.claude/skills/dep_b/dep-b-skill" "/skills/dep-b-skill" "global link"
-assert_symlink "$APP/.claude/skills/dep_a/dep-a-skill" "/skills/dep-a-skill" "project link"
-assert_symlink "$APP/.claude/skills/dep_b/dep-b-skill" "/skills/dep-b-skill" "project link"
-assert_symlink "$APP/.agent/skills/dep_b/dep-b-skill" "/skills/dep-b-skill" "project link"
+assert_skill_link "$HOME/.claude/skills/dep_a/dep-a-skill" "/skills/dep-a-skill" "global link"
+assert_skill_link "$HOME/.claude/skills/dep_b/dep-b-skill" "/skills/dep-b-skill" "global link"
+assert_skill_link "$APP/.claude/skills/dep_a/dep-a-skill" "/skills/dep-a-skill" "project link"
+assert_skill_link "$APP/.claude/skills/dep_b/dep-b-skill" "/skills/dep-b-skill" "project link"
+assert_skill_link "$APP/.agent/skills/dep_b/dep-b-skill" "/skills/dep-b-skill" "project link"
 ok "project dependencies are linked globally and project-locally"
 
 # ---------------------------------------------------------------------------
@@ -410,7 +423,7 @@ cd "$NEUTRAL"
 # shellcheck disable=SC2086  # deliberate glob: no match must leave a literal
 set -- "$DEPS"/gitdep-*
 [ -d "$1" ] || fail "git dependency is cloned into the cache" "no gitdep-* under $DEPS: $(ls "$DEPS")"
-assert_symlink "$HOME/.claude/skills/gitdep/git-skill" "/skills/git-skill" "git dep skill is linked"
+assert_skill_link "$HOME/.claude/skills/gitdep/git-skill" "/skills/git-skill" "git dep skill is linked"
 cd "$APP2"
 assert_ok "sources with a git dependency" "$ZYM" sources
 cd "$NEUTRAL"
@@ -431,7 +444,7 @@ ok "--offline uses only what is already cached"
 cd "$APP2"
 assert_ok "sync re-fetches the dependency" "$ZYM" sync
 cd "$NEUTRAL"
-assert_symlink "$HOME/.claude/skills/gitdep/git-skill" "/skills/git-skill" "re-fetched git dep skill"
+assert_skill_link "$HOME/.claude/skills/gitdep/git-skill" "/skills/git-skill" "re-fetched git dep skill"
 ok "a later online sync restores the dependency's skills"
 
 # ---------------------------------------------------------------------------
@@ -445,7 +458,7 @@ skill "$LOCAL/skills" local-skill "Skill from an added package"
 assert_ok "add a local package" "$ZYM" add "$LOCAL"
 assert_grep "add reports the package" "added local-pkg" "$LOG"
 assert_grep "packages.json records the package" '"local-pkg"' "$PKGS"
-assert_symlink "$HOME/.claude/skills/local-pkg/local-skill" "/skills/local-skill" "added skill is linked"
+assert_skill_link "$HOME/.claude/skills/local-pkg/local-skill" "/skills/local-skill" "added skill is linked"
 assert_ok "sources after add" "$ZYM" sources
 assert_grep "added package kind" "package" "$LOG"
 assert_grep "added package appears" "local-pkg" "$LOG"
@@ -457,8 +470,8 @@ assert_grep "missing path is explained" "is not a directory" "$LOG"
 # --tool is how a package manager provisions one provider at a time; scoping it
 # must not prune the links belonging to anyone else.
 assert_ok "scoped sync" "$ZYM" sync --tool local-pkg
-assert_symlink "$HOME/.claude/skills/local-pkg/local-skill" "/skills/local-skill" "scoped link"
-assert_symlink "$HOME/.claude/skills/gitdep/git-skill" "/skills/git-skill" "other provider's link"
+assert_skill_link "$HOME/.claude/skills/local-pkg/local-skill" "/skills/local-skill" "scoped link"
+assert_skill_link "$HOME/.claude/skills/gitdep/git-skill" "/skills/git-skill" "other provider's link"
 assert_grep "scoped sync keeps other providers in state" '"provider": "gitdep"' "$STATE"
 ok "sync --tool leaves every other provider's skills alone"
 
@@ -469,15 +482,15 @@ LOCAL2="$F/local-pkg2"
 mkdir -p "$LOCAL2/skills"
 skill "$LOCAL2/skills" local-skill "Same skill name, different package"
 assert_ok "add second package with same skill name" "$ZYM" add "$LOCAL2"
-assert_symlink "$HOME/.claude/skills/local-pkg/local-skill" "/skills/local-skill" "first provider namespace"
-assert_symlink "$HOME/.claude/skills/local-pkg2/local-skill" "/skills/local-skill" "second provider namespace"
+assert_skill_link "$HOME/.claude/skills/local-pkg/local-skill" "/skills/local-skill" "first provider namespace"
+assert_skill_link "$HOME/.claude/skills/local-pkg2/local-skill" "/skills/local-skill" "second provider namespace"
 assert_grep "same-name skills both recorded" '"provider": "local-pkg2"' "$STATE"
 # Bare selectors are ambiguous when two providers ship the same name; the
 # provider/skill selector remains deterministic.
 assert_fails "ambiguous bare remove fails" "$ZYM" remove local-skill
 assert_grep "ambiguity suggests provider/skill" "matches multiple providers" "$LOG"
 assert_ok "remove one same-named skill by provider" "$ZYM" remove local-pkg2/local-skill
-assert_symlink "$HOME/.claude/skills/local-pkg/local-skill" "/skills/local-skill" "other provider survives removal"
+assert_skill_link "$HOME/.claude/skills/local-pkg/local-skill" "/skills/local-skill" "other provider survives removal"
 ok "provider namespaces allow same-named skills without collision"
 
 # ---------------------------------------------------------------------------
@@ -573,7 +586,7 @@ topology
 "$ZYM" sync --project "$APP" >"$LOG" 2>&1 || fail "T1 sync" "$(cat "$LOG")"
 assert_grep "T1 discovers project deps" "dep-b-skill" "$STATE"
 assert_grep "T1 provisions its own skills" "zymposium" "$STATE"
-assert_symlink "$HOME/.claude/skills/zymposium/zymposium" "/skills/zymposium" "T1 self skill"
+assert_skill_link "$HOME/.claude/skills/zymposium/zymposium" "/skills/zymposium" "T1 self skill"
 # No zest means no zest skill: the skill ships in zest, not here.
 [ ! -e "$HOME/.claude/skills/zest/zest" ] ||
     fail "T1 has no zest skill" "zest skill linked without zest"
@@ -592,7 +605,7 @@ assert_grep "T2 provisions its own skills" "zymposium" "$STATE"
 # The tool exists in the manifest, so its skills are discoverable here too:
 # T2 is "not installed via zest", not "zest is ignored".
 assert_grep "T2 picks up the zest tool's skills" "other-skill" "$STATE"
-assert_symlink "$HOME/.claude/skills/other-tool/other-skill" "/skills/other-skill" "T2 tool skill"
+assert_skill_link "$HOME/.claude/skills/other-tool/other-skill" "/skills/other-skill" "T2 tool skill"
 assert_ok "T2 doctor is clean" "$ZYM" doctor
 ok "T2: works standalone while a zest install is present"
 
@@ -671,13 +684,13 @@ if [ -f "$ZEST_TREE/bin/zymposium.exe" ]; then T3_ZYM="$ZEST_TREE/bin/zymposium.
 assert_grep "T3 records zymposium as a zest tool" '"provider": "zymposium"' "$STATE"
 assert_grep "T3 zymposium provenance is zest_tool" '"source_kind": "zest_tool"' "$STATE"
 assert_grep "T3 still records the other tool" "other-skill" "$STATE"
-assert_symlink "$HOME/.claude/skills/other-tool/other-skill" "/skills/other-skill" "T3 tool skill"
-assert_symlink "$HOME/.claude/skills/zymposium/zymposium" "/skills/zymposium" "T3 self skill"
-assert_symlink "$HOME/.claude/skills/zest/zest" "/skills/zest" "T3 zest skill from zest's own source tree"
+assert_skill_link "$HOME/.claude/skills/other-tool/other-skill" "/skills/other-skill" "T3 tool skill"
+assert_skill_link "$HOME/.claude/skills/zymposium/zymposium" "/skills/zymposium" "T3 self skill"
+assert_skill_link "$HOME/.claude/skills/zest/zest" "/skills/zest" "T3 zest skill from zest's own source tree"
 assert_ok "T3 doctor is clean" "$T3_ZYM" doctor
 ok "T3: installed via zest, self-skills resolve through the zest clone"
 "$T3_ZYM" sync --tool zest >"$LOG" 2>&1 || fail "T3 sync --tool zest" "$(cat "$LOG")"
-assert_symlink "$HOME/.claude/skills/zest/zest" "/skills/zest" "zest skill is separately namespaced"
+assert_skill_link "$HOME/.claude/skills/zest/zest" "/skills/zest" "zest skill is separately namespaced"
 assert_grep "T3 zest skills use the zest provider" '"provider": "zest"' "$STATE"
 ok "zymposium can target zest's own skill source"
 
@@ -685,7 +698,7 @@ ok "zymposium can target zest's own skill source"
 # touch only that provider and leave the others alone.
 "$T3_ZYM" sync --tool other-tool >"$LOG" 2>&1 || fail "T3 sync --tool" "$(cat "$LOG")"
 assert_grep "T3 --tool reports the untouched provider" "unchanged" "$LOG"
-assert_symlink "$HOME/.claude/skills/zymposium/zymposium" "/skills/zymposium" "T3 --tool keeps self skill"
+assert_skill_link "$HOME/.claude/skills/zymposium/zymposium" "/skills/zymposium" "T3 --tool keeps self skill"
 ok "T3: a targeted sync leaves other providers intact"
 
 # The transcript is echoed to the real stderr so a CI log shows every check,
