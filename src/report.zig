@@ -12,6 +12,7 @@ const Io = std.Io;
 const agents_mod = @import("agents.zig");
 const provision = @import("provision.zig");
 const state = @import("state.zig");
+const dragonfruit = @import("dragonfruit");
 const util = @import("util.zig");
 
 const w = std.json.fmt;
@@ -263,18 +264,40 @@ pub fn sourcesJson(gpa: std.mem.Allocator, rows: []const SourceRow) ![]u8 {
 // doctor
 // ---------------------------------------------------------------------------
 
-pub fn printProblems(out: *Io.Writer, problems: []const provision.Problem) !void {
+pub fn printProblems(
+    out: *Io.Writer,
+    style: dragonfruit.Style,
+    glyphs: dragonfruit.Glyphs,
+    problems: []const provision.Problem,
+) !void {
     if (problems.len == 0) {
-        try out.writeAll("all provisioned skills are healthy\n");
+        try dragonfruit.status(
+            out,
+            style,
+            glyphs,
+            .success,
+            "all provisioned skills are healthy",
+            .{},
+        );
         return;
     }
-    try out.print("{d} problem(s) found; `zymposium sync` repairs most of them:\n", .{problems.len});
+    try dragonfruit.status(
+        out,
+        style,
+        glyphs,
+        .warning,
+        "{d} problem(s) found; `zymposium sync` repairs most of them:",
+        .{problems.len},
+    );
     for (problems) |p| {
-        try out.print("  {f}  {s}  {s}\n", .{
-            util.pad(p.kind.name(), "orphaned".len),
-            p.skill,
-            p.path,
-        });
+        try dragonfruit.status(
+            out,
+            style,
+            glyphs,
+            .failure,
+            "  {f}  {s}  {s}",
+            .{ util.pad(p.kind.name(), "orphaned".len), p.skill, p.path },
+        );
     }
 }
 
@@ -330,13 +353,30 @@ pub fn printAgents(out: *Io.Writer, enabled: []const []const u8, home: ?[]const 
 // sync
 // ---------------------------------------------------------------------------
 
-pub fn printSync(out: *Io.Writer, o: provision.Outcome) !void {
-    try out.print(
-        "linked {d}, updated {d}, unchanged {d}, removed {d}\n",
+pub fn printSync(
+    out: *Io.Writer,
+    style: dragonfruit.Style,
+    glyphs: dragonfruit.Glyphs,
+    o: provision.Outcome,
+) !void {
+    const summary_status: dragonfruit.Status = if (o.conflicts.len == 0) .success else .warning;
+    try dragonfruit.status(
+        out,
+        style,
+        glyphs,
+        summary_status,
+        "linked {d}, updated {d}, unchanged {d}, removed {d}",
         .{ o.linked, o.updated, o.unchanged, o.removed },
     );
     for (o.conflicts) |c| {
-        try out.print("conflict: {s} is held by {s}, wanted by {s}\n", .{ c.path, c.holder, c.claimant });
+        try dragonfruit.status(
+            out,
+            style,
+            glyphs,
+            .failure,
+            "conflict: {s} is held by {s}, wanted by {s}",
+            .{ c.path, c.holder, c.claimant },
+        );
     }
 }
 

@@ -33,9 +33,9 @@ zymposium is built, versioned, and upgraded like any other zest tool — with
 `zest update zymposium` — and it re-syncs agent skills whenever zest installs,
 updates, or removes a tool that ships them.
 
-**Prefer to build it yourself?** zymposium is a single self-contained binary
-with no dependencies beyond Zig and `git`, and it works perfectly well on its
-own:
+**Prefer to build it yourself?** zymposium still produces a single binary and
+works without zest. Building requires Zig, `git`, and the pinned `dragonfruit`
+presentation package; Zig fetches that package on the first build if needed.
 
 ```sh
 git clone https://github.com/JustinWoodring/zymposium
@@ -53,6 +53,11 @@ Either way:
 zymposium sync      # discover skills and link them into your agents
 zymposium list      # what is provisioned, and where each one came from
 ```
+
+Human status markers use terminal colors only on ANSI-capable TTY output by
+default. A nonempty `NO_COLOR` disables colors; `CLICOLOR_FORCE` enables them
+for redirected output too. Dumb terminals use ASCII markers, and `--json`
+output remains color-free.
 
 ## What is zymposium?
 

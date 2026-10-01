@@ -5,6 +5,7 @@
 const std = @import("std");
 const Io = std.Io;
 const zymposium = @import("zymposium");
+const dragonfruit = @import("dragonfruit");
 
 pub fn main(init: std.process.Init) !void {
     const gpa = init.gpa;
@@ -46,6 +47,11 @@ fn flushBoth(out: *Io.Writer, err_out: *Io.Writer) void {
     err_out.flush() catch {};
 }
 
+fn supportsAnsiTerminal(file: Io.File, io: Io) bool {
+    if (!(file.isTty(io) catch false)) return false;
+    return file.supportsAnsiEscapeCodes(io) catch false;
+}
+
 fn run(
     gpa: std.mem.Allocator,
     io: Io,
@@ -80,6 +86,14 @@ fn run(
         else => {},
     }
 
+    const no_color = if (environ.get("NO_COLOR")) |value| value.len > 0 else false;
+    const force_color = if (environ.get("CLICOLOR_FORCE")) |value| value.len > 0 else false;
+    const term_is_dumb = if (environ.get("TERM")) |value|
+        std.mem.eql(u8, value, "dumb")
+    else
+        false;
+    const out_is_terminal = supportsAnsiTerminal(.stdout(), io);
+    const err_is_terminal = supportsAnsiTerminal(.stderr(), io);
     var ctx: zymposium.commands.Ctx = .{
         .gpa = gpa,
         .io = io,
@@ -87,6 +101,21 @@ fn run(
         .err = err_out,
         .paths = try zymposium.paths.Paths.resolve(gpa, environ),
         .environ = environ,
+        .out_style = dragonfruit.Style.resolve(
+            .auto,
+            out_is_terminal,
+            no_color,
+            force_color,
+            term_is_dumb,
+        ),
+        .err_style = dragonfruit.Style.resolve(
+            .auto,
+            err_is_terminal,
+            no_color,
+            force_color,
+            term_is_dumb,
+        ),
+        .glyphs = .{ .unicode = !term_is_dumb },
     };
     return zymposium.commands.dispatch(&ctx, cmd);
 }

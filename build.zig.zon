@@ -27,7 +27,12 @@
     // supported use case.
     .minimum_zig_version = "0.16.0",
 
-    .dependencies = .{},
+    .dependencies = .{
+        .dragonfruit = .{
+            .url = "git+https://github.com/JustinWoodring/dragonfruit.git#48cbf880af923491d9661919ac53ad30fe69d628",
+            .hash = "dragonfruit-0.1.0-mjPthIRcAAAlwWgsGPHsVcQgHvoPyJrzsC_CIPdSJf1v",
+        },
+    },
 
     // Specifies the set of files and directories that are included in this package.
     // Only files and directories listed here are included in the `hash` that

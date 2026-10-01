@@ -7,9 +7,14 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const dragonfruit_mod = b.dependency("dragonfruit", .{ .target = target }).module("dragonfruit");
+
     const mod = b.addModule("zymposium", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
+        .imports = &.{
+            .{ .name = "dragonfruit", .module = dragonfruit_mod },
+        },
     });
 
     const exe = b.addExecutable(.{
@@ -20,6 +25,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "zymposium", .module = mod },
+                .{ .name = "dragonfruit", .module = dragonfruit_mod },
             },
         }),
     });

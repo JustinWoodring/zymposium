@@ -27,9 +27,9 @@ zig build            # build zig-out/bin/zymposium
 zig build test       # unit tests
 ```
 
-Requirements: Zig 0.16.0 or newer, plus `git`. You do not need a separate Zig
-install or a network connection for the test suites; the hermetic suite uses
-local fixtures.
+Requirements: Zig 0.16.0 or newer, plus `git`. A fresh build may fetch the
+pinned `dragonfruit` package if it is not already cached; the test fixtures
+themselves remain hermetic and do not need network access.
 
 ## zest is optional
 

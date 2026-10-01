@@ -8,6 +8,7 @@
 //! SPDX-License-Identifier: MIT
 const std = @import("std");
 const Io = std.Io;
+const dragonfruit = @import("dragonfruit");
 const agents_mod = @import("agents.zig");
 const cli = @import("cli.zig");
 const config_mod = @import("config.zig");
@@ -30,10 +31,41 @@ pub const Ctx = struct {
     err: *Io.Writer,
     paths: paths_mod.Paths,
     environ: *const std.process.Environ.Map,
+    out_style: dragonfruit.Style,
+    err_style: dragonfruit.Style,
+    glyphs: dragonfruit.Glyphs,
+
+    fn writeStatus(
+        c: *Ctx,
+        writer: *Io.Writer,
+        style: dragonfruit.Style,
+        kind: dragonfruit.Status,
+        comptime fmt_string: []const u8,
+        args: anytype,
+    ) !void {
+        try dragonfruit.status(writer, style, c.glyphs, kind, fmt_string, args);
+    }
 
     fn note(c: *Ctx, comptime fmt_string: []const u8, args: anytype) !void {
-        try c.err.print("zymposium: " ++ fmt_string ++ "\n", args);
+        try c.writeStatus(c.err, c.err_style, .info, "zymposium: " ++ fmt_string, args);
         try c.err.flush();
+    }
+
+    fn warning(c: *Ctx, comptime fmt_string: []const u8, args: anytype) !void {
+        try c.writeStatus(c.err, c.err_style, .warning, "zymposium: " ++ fmt_string, args);
+        try c.err.flush();
+    }
+
+    fn failure(c: *Ctx, comptime fmt_string: []const u8, args: anytype) !void {
+        try c.writeStatus(c.err, c.err_style, .failure, "zymposium: " ++ fmt_string, args);
+    }
+
+    fn success(c: *Ctx, comptime fmt_string: []const u8, args: anytype) !void {
+        try c.writeStatus(c.out, c.out_style, .success, fmt_string, args);
+    }
+
+    fn info(c: *Ctx, comptime fmt_string: []const u8, args: anytype) !void {
+        try c.writeStatus(c.out, c.out_style, .info, fmt_string, args);
     }
 
     fn packagesFile(c: *Ctx) ![]u8 {
@@ -61,8 +93,8 @@ fn loadConfig(c: *Ctx) !config_mod.Config {
         error.InvalidConfig => {
             const known = try agents_mod.idList(c.gpa);
             defer c.gpa.free(known);
-            try c.err.print(
-                "zymposium: {s} is not valid; see `zymposium agents` for known ids ({s})\n",
+            try c.failure(
+                "{s} is not valid; see `zymposium agents` for known ids ({s})",
                 .{ c.paths.config_file, known },
             );
             return error.InvalidConfig;
@@ -74,8 +106,8 @@ fn loadConfig(c: *Ctx) !config_mod.Config {
 fn loadState(c: *Ctx) !state.State {
     return state.State.load(c.gpa, c.io, c.paths.state_file) catch |err| switch (err) {
         error.InvalidState => {
-            try c.err.print(
-                "zymposium: {s} is corrupt; move it aside and re-run `zymposium sync`\n",
+            try c.failure(
+                "{s} is corrupt; move it aside and re-run `zymposium sync`",
                 .{c.paths.state_file},
             );
             return error.InvalidState;
@@ -89,14 +121,14 @@ fn loadState(c: *Ctx) !state.State {
 fn resolveProjectRoot(c: *Ctx, explicit: ?[]const u8) !?[]u8 {
     if (explicit) |p| {
         if (!project_mod.isProject(c.gpa, c.io, p)) {
-            try c.err.print("zymposium: {s} has no {s}\n", .{ p, project_mod.zon_file_name });
+            try c.failure("{s} has no {s}", .{ p, project_mod.zon_file_name });
             return error.NotAZigProject;
         }
         return try c.gpa.dupe(u8, p);
     }
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
     const len = Io.Dir.cwd().realPathFile(c.io, ".", &buf) catch {
-        try c.err.print("zymposium: cannot determine the current directory\n", .{});
+        try c.failure("cannot determine the current directory", .{});
         return error.UnexpectedError;
     };
     var dir: ?[]u8 = null;
@@ -167,7 +199,7 @@ fn gather(
         for (list) |t| try set.add(t);
         c.gpa.free(list);
     } else |err| switch (err) {
-        error.InvalidState => try c.note("ignoring unreadable zest state at {s}", .{zest_root}),
+        error.InvalidState => try c.warning("ignoring unreadable zest state at {s}", .{zest_root}),
         else => |e| return e,
     }
 
@@ -197,7 +229,7 @@ fn gather(
     if (packages.Registry.load(c.gpa, c.io, pkgs_path)) |loaded| {
         reg = loaded;
     } else |err| switch (err) {
-        error.InvalidRegistry => try c.note("ignoring corrupt package registry at {s}", .{pkgs_path}),
+        error.InvalidRegistry => try c.warning("ignoring corrupt package registry at {s}", .{pkgs_path}),
         else => |e| return e,
     }
     defer reg.deinit();
@@ -215,7 +247,7 @@ fn gather(
         })) |ok| {
             res = ok;
         } else |err| switch (err) {
-            error.ParseZon => try c.note("skipping unreadable {s} in {s}", .{ project_mod.zon_file_name, root }),
+            error.ParseZon => try c.warning("skipping unreadable {s} in {s}", .{ project_mod.zon_file_name, root }),
             else => |e| return e,
         }
         // `set.add` takes ownership; `res` must not free them afterwards.
@@ -282,7 +314,7 @@ pub fn init(c: *Ctx) !u8 {
         }
     }
 
-    try c.out.print("wrote {s}\n", .{c.paths.config_file});
+    try c.success("wrote {s}", .{c.paths.config_file});
     try c.out.print("agents enabled: ", .{});
     for (cfg.agent_ids, 0..) |id, i| {
         if (i > 0) try c.out.writeAll(", ");
@@ -317,7 +349,7 @@ pub fn syncCmd(c: *Ctx, opts: cli.SyncOptions) !u8 {
     var gathered = try gather(c, root, opts.no_lazy, opts.offline);
     defer gathered.deinit(c.gpa);
 
-    for (gathered.notices) |n| try c.note("{s}", .{n.message});
+    for (gathered.notices) |n| try c.warning("{s}", .{n.message});
 
     const found = try discoverAll(c, gathered.candidates);
     defer sources.freeFound(c.gpa, found);
@@ -333,7 +365,7 @@ pub fn syncCmd(c: *Ctx, opts: cli.SyncOptions) !u8 {
         .only_provider = opts.tool,
     }, found) catch |err| switch (err) {
         error.NoHomeDirectory => {
-            try c.err.print("zymposium: no $HOME in the environment; only project scope is available\n", .{});
+            try c.failure("no $HOME in the environment; only project scope is available", .{});
             return 1;
         },
         else => |e| return e,
@@ -347,7 +379,7 @@ pub fn syncCmd(c: *Ctx, opts: cli.SyncOptions) !u8 {
         defer c.gpa.free(text);
         try c.out.print("{s}", .{text});
     } else {
-        try report.printSync(c.out, result);
+        try report.printSync(c.out, c.out_style, c.glyphs, result);
         if (root) |r| {
             try c.out.print("project scope: {s}\n", .{r});
         }
@@ -443,7 +475,7 @@ pub fn sourcesCmd(c: *Ctx, json: bool) !u8 {
 
     var gathered = try gather(c, root, false, false);
     defer gathered.deinit(c.gpa);
-    for (gathered.notices) |n| try c.note("{s}", .{n.message});
+    for (gathered.notices) |n| try c.warning("{s}", .{n.message});
 
     const found = try discoverAll(c, gathered.candidates);
     defer sources.freeFound(c.gpa, found);
@@ -474,7 +506,7 @@ pub fn sourcesCmd(c: *Ctx, json: bool) !u8 {
 
 pub fn addCmd(c: *Ctx, source: []const u8, name: ?[]const u8) !u8 {
     if (!git.exists(c.gpa, c.io)) {
-        try c.err.print("zymposium: `git` is required to add remote packages\n", .{});
+        try c.failure("`git` is required to add remote packages", .{});
         return 1;
     }
     try c.paths.ensureLayout(c.io);
@@ -486,11 +518,11 @@ pub fn addCmd(c: *Ctx, source: []const u8, name: ?[]const u8) !u8 {
         std.fs.path.stem(std.fs.path.basename(url))
     else
         std.fs.path.basename(std.fs.path.resolve(c.gpa, &.{source}) catch {
-            try c.err.print("zymposium: cannot resolve {s}\n", .{source});
+            try c.failure("cannot resolve {s}", .{source});
             return 1;
         });
     if (provider.len == 0) {
-        try c.err.print("zymposium: cannot derive a package name from '{s}'; pass --name\n", .{source});
+        try c.failure("cannot derive a package name from '{s}'; pass --name", .{source});
         return 1;
     }
 
@@ -501,16 +533,16 @@ pub fn addCmd(c: *Ctx, source: []const u8, name: ?[]const u8) !u8 {
         if (!try refreshClone(c, url, root)) return 1;
     } else {
         const resolved = std.fs.path.resolve(c.gpa, &.{source}) catch {
-            try c.err.print("zymposium: cannot resolve {s}\n", .{source});
+            try c.failure("cannot resolve {s}", .{source});
             return 1;
         };
         defer c.gpa.free(resolved);
         const st = Io.Dir.cwd().statFile(c.io, resolved, .{}) catch {
-            try c.err.print("zymposium: {s} is not a directory\n", .{source});
+            try c.failure("{s} is not a directory", .{source});
             return 1;
         };
         if (st.kind != .directory) {
-            try c.err.print("zymposium: {s} is not a directory\n", .{source});
+            try c.failure("{s} is not a directory", .{source});
             return 1;
         }
         root = try c.gpa.dupe(u8, resolved);
@@ -524,7 +556,7 @@ pub fn addCmd(c: *Ctx, source: []const u8, name: ?[]const u8) !u8 {
     if (packages.Registry.load(c.gpa, c.io, pkgs_path)) |loaded| {
         reg = loaded;
     } else |err| switch (err) {
-        error.InvalidRegistry => try c.note("replacing corrupt registry at {s}", .{pkgs_path}),
+        error.InvalidRegistry => try c.warning("replacing corrupt registry at {s}", .{pkgs_path}),
         else => |e| return e,
     }
     defer reg.deinit();
@@ -532,7 +564,7 @@ pub fn addCmd(c: *Ctx, source: []const u8, name: ?[]const u8) !u8 {
     try reg.put(provider, source, root);
     try reg.save(c.io, pkgs_path);
 
-    try c.out.print("added {s} → {s}\n", .{ provider, root });
+    try c.success("added {s} {s} {s}", .{ provider, c.glyphs.arrow(), root });
     try c.out.flush();
 
     return syncCmd(c, .{
@@ -551,13 +583,14 @@ fn refreshClone(c: *Ctx, url: []const u8, dir: []const u8) !bool {
     Io.Dir.cwd().deleteTree(c.io, dir) catch {};
     try c.note("fetching {s}…", .{url});
     const res = git.clone(c.gpa, c.io, url, dir, null) catch |err| {
-        try c.err.print("zymposium: could not fetch {s} ({s})\n", .{ url, @errorName(err) });
+        try c.failure("could not fetch {s} ({s})", .{ url, @errorName(err) });
         return false;
     };
     defer c.gpa.free(res.output);
     if (!res.ok) {
         Io.Dir.cwd().deleteTree(c.io, dir) catch {};
-        try c.err.print("zymposium: clone failed:\n{s}", .{res.output});
+        try c.writeStatus(c.err, c.err_style, .failure, "zymposium: clone failed:", .{});
+        try c.err.writeAll(res.output);
         return false;
     }
     return true;
@@ -574,11 +607,11 @@ pub fn removeCmd(c: *Ctx, skill: []const u8) !u8 {
     const key = switch (st.resolveSelector(skill)) {
         .found => |k| k,
         .missing => {
-            try c.err.print("zymposium: '{s}' is not provisioned (see `zymposium list`)\n", .{skill});
+            try c.failure("'{s}' is not provisioned (see `zymposium list`)", .{skill});
             return 1;
         },
         .ambiguous => {
-            try c.err.print("zymposium: '{s}' matches multiple providers; use <provider>/<skill>\n", .{skill});
+            try c.failure("'{s}' matches multiple providers; use <provider>/<skill>", .{skill});
             return 1;
         },
     };
@@ -588,7 +621,7 @@ pub fn removeCmd(c: *Ctx, skill: []const u8) !u8 {
     try provision.removeSkill(c.gpa, c.io, &st, key);
     try st.save(c.io, c.paths.state_file);
 
-    try c.out.print("removed {s}\n", .{label});
+    try c.success("removed {s}", .{label});
     try c.out.flush();
     return 0;
 }
@@ -607,17 +640,17 @@ pub fn updateCmd(c: *Ctx, skill: ?[]const u8) !u8 {
         const key = switch (st.resolveSelector(selector)) {
             .found => |k| k,
             .missing => {
-                try c.err.print("zymposium: '{s}' is not provisioned (see `zymposium list`)\n", .{selector});
+                try c.failure("'{s}' is not provisioned (see `zymposium list`)", .{selector});
                 return 1;
             },
             .ambiguous => {
-                try c.err.print("zymposium: '{s}' matches multiple providers; use <provider>/<skill>\n", .{selector});
+                try c.failure("'{s}' matches multiple providers; use <provider>/<skill>", .{selector});
                 return 1;
             },
         };
         const entry = st.skills.get(key).?;
         provider_filter = entry.provider;
-        try c.out.print("updating {s}/{s} from {s}\n", .{ entry.provider, entry.name, entry.source_url });
+        try c.info("updating {s}/{s} from {s}", .{ entry.provider, entry.name, entry.source_url });
 
         // Only clones zymposium owns are re-fetched. A zest tool's clone
         // belongs to zest: re-cloning it here would race `zest update` and
@@ -651,7 +684,7 @@ pub fn updateCmd(c: *Ctx, skill: ?[]const u8) !u8 {
         if (packages.Registry.load(c.gpa, c.io, pkgs_path)) |loaded| {
             reg = loaded;
         } else |err| switch (err) {
-            error.InvalidRegistry => try c.note("ignoring corrupt registry at {s}", .{pkgs_path}),
+            error.InvalidRegistry => try c.warning("ignoring corrupt registry at {s}", .{pkgs_path}),
             else => |e| return e,
         }
         defer reg.deinit();
@@ -702,7 +735,7 @@ pub fn doctorCmd(c: *Ctx, json: bool) !u8 {
         defer c.gpa.free(text);
         try c.out.print("{s}", .{text});
     } else {
-        try report.printProblems(c.out, problems);
+        try report.printProblems(c.out, c.out_style, c.glyphs, problems);
     }
     try c.out.flush();
     return if (problems.len == 0) 0 else 1;
