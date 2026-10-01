@@ -294,9 +294,9 @@ if [ -L "$CONFLICT_PATH" ]; then
     expected_conflict=$CONFLICT_PATH
     conflict_log=$LOG
     if [ -n "$WIN" ]; then
-        expected_conflict=$(printf '%s\n' "$CONFLICT_PATH" | tr '\\' '/')
+        expected_conflict=$(printf '%s\n' "$CONFLICT_PATH" | tr '\134' '/')
         conflict_log="$WORK/path-normalized.log"
-        tr '\\' '/' <"$LOG" >"$conflict_log"
+        tr '\134' '/' <"$LOG" >"$conflict_log"
     fi
     grep -Fq -- "conflict: $expected_conflict" "$conflict_log" ||
         fail "conflict is named" "path '$expected_conflict' not found: $(cat "$LOG")"
