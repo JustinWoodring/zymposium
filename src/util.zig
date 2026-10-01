@@ -236,11 +236,16 @@ pub fn linksTo(io: Io, link_path: []const u8, target_path: []const u8) bool {
     const e = inspectPath(gpa, io, link_path);
     defer e.deinit(gpa);
     return switch (e) {
-        .symlink => |raw_target| std.mem.eql(u8, raw_target, target_path) or
-            normalizedPathsEqual(gpa, raw_target, target_path) or
-            resolvesTo(io, gpa, link_path, target_path),
+        .symlink => |raw_target| linkTargetMatches(io, link_path, raw_target, target_path),
         else => false,
     };
+}
+/// Compare an inspected symlink target with an expected path.
+pub fn linkTargetMatches(io: Io, link_path: []const u8, raw_target: []const u8, target_path: []const u8) bool {
+    const gpa = std.heap.page_allocator;
+    return std.mem.eql(u8, raw_target, target_path) or
+        normalizedPathsEqual(gpa, raw_target, target_path) or
+        resolvesTo(io, gpa, link_path, target_path);
 }
 fn normalizedPathsEqual(gpa: std.mem.Allocator, a: []const u8, b: []const u8) bool {
     if (!std.fs.path.isAbsolute(a) or !std.fs.path.isAbsolute(b)) return false;

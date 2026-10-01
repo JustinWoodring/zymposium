@@ -441,7 +441,7 @@ pub fn doctor(gpa: std.mem.Allocator, io: Io, st: *const state.State) ![]Problem
             defer present.deinit(gpa);
             const problem_kind: ?Kind = switch (present) {
                 .absent => if (source_alive) .missing else .orphaned,
-                .symlink => |t| if (!std.mem.eql(u8, t, s.skill_path)) .dangling else null,
+                .symlink => |t| if (!util.linkTargetMatches(io, l.path, t, s.skill_path)) .dangling else null,
                 else => if (!source_alive) .stale_source else null,
             };
             if (problem_kind) |k| try out.append(gpa, .{
