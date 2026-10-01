@@ -246,10 +246,15 @@ pub fn linksTo(io: Io, link_path: []const u8, target_path: []const u8) bool {
 /// This preserves the fast path for ordinary symlinks while treating aliases as
 /// the same target.
 fn resolvesTo(io: Io, gpa: std.mem.Allocator, link_path: []const u8, target_path: []const u8) bool {
+    const actual_path = std.fs.path.resolve(gpa, &.{link_path}) catch return false;
+    defer gpa.free(actual_path);
+    const expected_path = std.fs.path.resolve(gpa, &.{target_path}) catch return false;
+    defer gpa.free(expected_path);
+
     const cwd = Io.Dir.cwd();
-    const actual = cwd.realPathFileAlloc(io, link_path, gpa) catch return false;
+    const actual = cwd.realPathFileAlloc(io, actual_path, gpa) catch return false;
     defer gpa.free(actual);
-    const expected = cwd.realPathFileAlloc(io, target_path, gpa) catch return false;
+    const expected = cwd.realPathFileAlloc(io, expected_path, gpa) catch return false;
     defer gpa.free(expected);
     return std.mem.eql(u8, actual, expected);
 }
