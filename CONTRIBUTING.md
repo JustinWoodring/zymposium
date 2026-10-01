@@ -168,9 +168,10 @@ issue first — the engine is deliberately built around that one shape.
 pushing an annotated `vX.Y.Z` tag. Contributors do not push tags or releases;
 open a pull request instead.
 
-Because zest installs and upgrades the latest semantic-version tag by default,
-every user-visible change should be mentioned in the release notes that the
-maintainer writes at tag time.
+Before tagging, set the same version in `.version` in `build.zig.zon` and the
+`version` constant in `src/cli.zig`. The `v*` release workflow checks this
+match, cross-builds the supported platform archives, and creates the GitHub
+release with generated notes.
 
 ## Licensing
 

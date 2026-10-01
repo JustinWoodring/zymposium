@@ -13,6 +13,9 @@
     <a href="https://github.com/sponsors/JustinWoodring"><img src="https://img.shields.io/github/sponsors/JustinWoodring?label=sponsor&logo=github" alt="sponsor"></a>
   </p>
   <p><a href="https://justinwoodring.github.io/zymposium">justinwoodring.github.io/zymposium</a></p>
+  <p><em>I’m building a small ecosystem of focused Zig tools: zest builds and updates
+     CLI tools; zymposium provisions the agent skills those tools and Zig packages
+     provide. Each works on its own; the integration is optional.</em></p>
 </div>
 
 ---
@@ -310,6 +313,13 @@ which is why it prunes links whose tool or dependency has disappeared.
 
 zest resolves zymposium from its own `bin` directory. Set `ZYMPOSIUM_BIN` to
 point at a binary kept elsewhere.
+
+## Acknowledgements
+
+The dependency-aware agent-skills idea was inspired by
+[Symposium](https://github.com/symposium-dev/symposium), which matches agent
+extensions to Rust workspace dependencies. zymposium adapts that idea to Zig
+packages and zest-managed tools.
 
 ## Exit codes
 

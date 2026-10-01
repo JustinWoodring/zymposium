@@ -196,6 +196,8 @@ fn eqlAny(s: []const u8, candidates: []const []const u8) bool {
     return false;
 }
 
+pub const version = "0.1.0";
+
 pub const usage_text =
     \\zymposium: agent skills for Zig projects and CLI tools
     \\
@@ -236,27 +238,21 @@ pub const usage_text =
     \\Config: $XDG_CONFIG_HOME/zymposium/config.json (default ~/.config/zymposium)
     \\State:  $XDG_DATA_HOME/zymposium/state.json (default ~/.local/share/zymposium)
     \\
+    \\Author: Justin Woodring
     \\Like zymposium? Consider sponsoring development: https://github.com/sponsors/JustinWoodring
 ;
 
-pub const logo_text =
-    \\ ███████╗ ██╗   ███╗███╗   ██╗██████╗ ████████╗██╗   ██╗███╗   ██╗
-    \\ ██╔════╝ ██║   ██║████╗  ██║██╔══██╗╚══██╔══╝██║   ██║████╗  ██║
-    \\ ███████╗ ██║   ██║██╔██╗ ██║███████║   ██║   ██║   ██║██╔██╗ ██║
-    \\ ╚════██║ ██║   ██║██║╚██╗██║██╔══██║   ██║   ██║   ██║██║╚██╗██║
-    \\ ███████║ ╚██████╔╝██║ ╚████║██║  ██║   ██║   ╚██████╔╝██║ ╚████║
-    \\ ╚══════╝  ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝    ╚═══╝ ╚═╝  ╚═══╝
-    \\
-;
-pub const about_text = logo_text ++ "\n" ++
-    " zymposium 0.1.0, agent skills for Zig projects and CLI tools\n" ++
+pub const logo_text = "zymposium";
+pub const about_text = logo_text ++ "\n\n" ++
+    " zymposium " ++ version ++ ", agent skills for Zig projects and CLI tools\n" ++
     " discovers <package>/skills and provisions them into your agents\n\n" ++
     " home     https://github.com/JustinWoodring/zymposium\n" ++
     " install  zest install JustinWoodring/zymposium\n" ++
-    "          (or `zig build` and use the binary standalone)\n\n" ++
+    "          (or `zig build` and use the binary standalone)\n" ++
+    " author   Justin Woodring\n" ++
+    " sponsor  https://github.com/sponsors/JustinWoodring\n\n" ++
     " try `zymposium --help` for commands\n";
-
-pub const version_text = "zymposium 0.1.0\n";
+pub const version_text = "zymposium " ++ version ++ "\n";
 
 test "parse rejects unknown commands and stray flags" {
     const gpa = std.testing.allocator;

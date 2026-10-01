@@ -1,0 +1,110 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  ZIG_VERSION: "0.16.0"
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - name: Verify tag, package, and CLI versions
+        shell: bash
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          package_version=$(sed -nE 's/^[[:space:]]*\.version = "([^"]+)".*/\1/p' build.zig.zon)
+          if [ "$version" != "$package_version" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match build.zig.zon version ${package_version}" >&2
+            exit 1
+          fi
+          zig build -Doptimize=ReleaseSafe
+          cli_version=$(./zig-out/bin/zymposium --version)
+          if [ "$cli_version" != "zymposium $version" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match CLI version ${cli_version}" >&2
+            exit 1
+          fi
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" \
+              --draft \
+              --verify-tag \
+              --title "zymposium $version" \
+              --generate-notes \
+              --notes "Install with zest install JustinWoodring/zymposium, or download a ReleaseSafe archive for your platform."
+
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-linux-musl, archive: tar.gz }
+          - { os: ubuntu-latest, target: aarch64-linux-musl, archive: tar.gz }
+          - { os: ubuntu-latest, target: x86_64-windows-gnu, archive: zip }
+          - { os: ubuntu-latest, target: aarch64-windows-gnu, archive: zip }
+          - { os: macos-latest, target: aarch64-macos, archive: tar.gz }
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - name: Build (${{ matrix.target }})
+        run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSafe
+      - name: Package
+        shell: bash
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          triple="${{ matrix.target }}"
+          stage="zymposium-${version}-${triple}"
+          mkdir -p "$stage"
+          if [ "${{ matrix.archive }}" = zip ]; then
+            cp zig-out/bin/zymposium.exe "$stage/zymposium.exe"
+            zip -r "zymposium-${version}-${triple}.zip" "$stage"
+          else
+            cp zig-out/bin/zymposium "$stage/zymposium"
+            chmod 755 "$stage/zymposium"
+            tar -czf "zymposium-${version}-${triple}.tar.gz" "$stage"
+          fi
+          ls -la "zymposium-${version}-${triple}.${{ matrix.archive }}"
+      - name: Attach asset to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          asset="zymposium-${version}-${{ matrix.target }}.${{ matrix.archive }}"
+          gh release upload "$GITHUB_REF_NAME" "$asset" --clobber
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish completed release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false

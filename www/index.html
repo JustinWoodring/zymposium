@@ -95,6 +95,9 @@
   .note { margin-top: 30px; background: var(--panel); border: 1px solid var(--line-2); border-left: 3px solid var(--accent); border-radius: 10px; padding: 16px 18px; color: var(--dim); font-size: 14.5px; }
   .note b { color: var(--text); font-weight: 600; }
   .note + .note { margin-top: 14px; }
+  .sponsor-line { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 34px; color: var(--dim); font-size: 13.5px; }
+  .sponsor-cta { display: inline-flex; align-items: center; min-height: 36px; padding: 0 13px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line-2)); border-radius: 8px; background: color-mix(in srgb, var(--accent) 13%, var(--panel)); color: var(--accent-2); font: 600 12px var(--mono); text-decoration: none; }
+  .sponsor-cta:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--panel)); color: var(--text); text-decoration: none; }
 
   footer { border-top: 1px solid var(--line); margin-top: 60px; padding: 26px 0 44px; color: var(--faint); font: 13px var(--mono); }
   footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
@@ -158,6 +161,9 @@
     </div>
   </div>
 
+  <p class="lead">I’m building a small ecosystem of focused Zig tools: zest builds and updates
+  CLI tools; zymposium provisions the agent skills those tools and Zig packages provide.
+  Each works on its own; the integration is optional.</p>
   <section id="install">
     <div class="kicker"><span class="num">01</span>Install</div>
     <h2>One command, via zest</h2>
@@ -282,7 +288,14 @@ all provisioned skills are healthy</pre>
       by the same author, and depends on nothing. zymposium provisions the skills your dependencies and
       added packages ship; if you also use zest, it provisions the skills of the CLI tools zest manages,
       straight from that tool's staged clone.</p>
+      <p>The dependency-aware agent-skills idea was inspired by
+      <a href="https://github.com/symposium-dev/symposium">Symposium</a>, which matches agent
+      extensions to Rust workspace dependencies. zymposium adapts that idea to Zig packages
+      and zest-managed tools.</p>
     </div>
+    <p class="sponsor-line"><span>Enjoying zymposium?</span>
+      <a class="sponsor-cta" href="https://github.com/sponsors/JustinWoodring">Consider sponsoring</a>
+      <span>its development.</span></p>
   </section>
 
 </div>
