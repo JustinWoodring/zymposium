@@ -237,9 +237,18 @@ pub fn linksTo(io: Io, link_path: []const u8, target_path: []const u8) bool {
     defer e.deinit(gpa);
     return switch (e) {
         .symlink => |raw_target| std.mem.eql(u8, raw_target, target_path) or
+            normalizedPathsEqual(gpa, raw_target, target_path) or
             resolvesTo(io, gpa, link_path, target_path),
         else => false,
     };
+}
+fn normalizedPathsEqual(gpa: std.mem.Allocator, a: []const u8, b: []const u8) bool {
+    if (!std.fs.path.isAbsolute(a) or !std.fs.path.isAbsolute(b)) return false;
+    const normalized_a = std.fs.path.resolve(gpa, &.{a}) catch return false;
+    defer gpa.free(normalized_a);
+    const normalized_b = std.fs.path.resolve(gpa, &.{b}) catch return false;
+    defer gpa.free(normalized_b);
+    return std.mem.eql(u8, normalized_a, normalized_b);
 }
 
 /// Resolve the link and requested target only when their path spellings differ.
