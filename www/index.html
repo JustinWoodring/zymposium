@@ -54,8 +54,6 @@
   .chip { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 999px; font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
   .chip.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line-2)); }
 
-  /* ---- wordmark ---- */
-  pre.logo { margin-top: 30px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; font: clamp(8px, 2.2vw, 13px)/1.35 var(--mono); color: var(--accent-2); overflow-x: auto; }
 
   /* ---- install ---- */
   .installs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 30px; }
@@ -151,19 +149,13 @@
         <a href="https://github.com/JustinWoodring/zest">zest</a>, or build it yourself.</p>
         <div class="chips">
           <span class="chip on">Zig 0.16</span>
-          <span class="chip on">zest install</span>
-          <span class="chip">Also builds standalone</span>
-          <span class="chip">Claude Code &middot; Codex &middot; .agent</span>
+          <span class="chip">MIT</span>
           <span class="chip">Linux &middot; macOS &middot; Windows</span>
+          <span class="chip">Claude Code &middot; Codex &middot; .agent</span>
+          <a class="chip" href="https://github.com/JustinWoodring/zymposium/actions/workflows/ci.yml"><img src="https://github.com/JustinWoodring/zymposium/actions/workflows/ci.yml/badge.svg" alt="CI" style="height:20px"></a>
         </div>
       </div>
     </div>
-<pre class="logo"> ███████╗ ██╗   ███╗███╗   ██╗██████╗ ████████╗██╗   ██╗███╗   ██╗
- ██╔════╝ ██║   ██║████╗  ██║██╔══██╗╚══██╔══╝██║   ██║████╗  ██║
- ███████╗ ██║   ██║██╔██╗ ██║███████║   ██║   ██║   ██║██╔██╗ ██║
- ╚════██║ ██║   ██║██║╚██╗██║██╔══██║   ██║   ██║   ██║██║╚██╗██║
- ███████║ ╚██████╔╝██║ ╚████║██║  ██║   ██║   ╚██████╔╝██║ ╚████║
- ╚══════╝  ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝    ╚═══╝ ╚═╝  ╚═══╝</pre>
   </div>
 
   <section id="install">
@@ -257,10 +249,10 @@ all provisioned skills are healthy</pre>
       <tr><td>Codex (OpenAI)</td><td><code>~/.codex/skills</code> and <code>&lt;project&gt;/.codex/skills</code></td></tr>
       <tr><td>Generic .agent</td><td><code>~/.agent/skills</code> and <code>&lt;project&gt;/.agent/skills</code></td></tr>
     </table>
-    <p class="body"><p>Project scope is only used when there is a project: run <code>sync</code> from a
+    <p class="body">Project scope is only used when there is a project: run <code>sync</code> from a
     directory with a <code>build.zig.zon</code>, or point at one with <code>--project &lt;dir&gt;</code>.
     Pruning is scoped too, so a run that touches one project leaves every other project's links
-    alone.</p></p>
+    alone.</p>
   </section>
 
   <section id="safety">
