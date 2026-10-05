@@ -7,7 +7,7 @@
   <p>
     <a href="https://github.com/JustinWoodring/zymposium/actions/workflows/ci.yml"><img src="https://github.com/JustinWoodring/zymposium/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
-    <img src="https://img.shields.io/badge/zig-0.16.0-f7a41d" alt="zig">
+    <img src="https://img.shields.io/badge/zig-0.17.0-f7a41d" alt="zig">
     <a href="https://github.com/JustinWoodring/zymposium/releases"><img src="https://img.shields.io/github/v/release/JustinWoodring/zymposium" alt="release"></a>
     <a href="https://github.com/JustinWoodring/zymposium/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs"></a>
     <a href="https://github.com/sponsors/JustinWoodring"><img src="https://img.shields.io/github/sponsors/JustinWoodring?label=sponsor&logo=github" alt="sponsor"></a>

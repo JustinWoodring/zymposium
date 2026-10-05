@@ -27,7 +27,7 @@ zig build            # build zig-out/bin/zymposium
 zig build test       # unit tests
 ```
 
-Requirements: Zig 0.16.0 or newer, plus `git`. A fresh build may fetch the
+Requirements: Zig 0.17.0 or newer, plus `git`. A fresh build may fetch the
 pinned `dragonfruit` package if it is not already cached; the test fixtures
 themselves remain hermetic and do not need network access.
 

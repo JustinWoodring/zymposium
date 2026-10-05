@@ -178,7 +178,7 @@ F="$WORK/fixtures"
 cd "$NEUTRAL"
 
 out=$("$ZYM" --version)
-printf '%s' "$out" | grep -q "zymposium 0.1.1" || fail "--version" "$out"
+printf '%s' "$out" | grep -q "zymposium 0.2.0" || fail "--version" "$out"
 ok "--version reports the version"
 
 assert_exit 2 "unknown command exits 2" "$ZYM" frobnicate

@@ -126,9 +126,9 @@ pub const LinkMode = enum {
     copy,
 
     pub fn parse(s: []const u8) ?LinkMode {
-        inline for (@typeInfo(LinkMode).@"enum".fields) |f| {
-            if (s.len == f.name.len and std.mem.eql(u8, s, f.name))
-                return @enumFromInt(f.value);
+        inline for (@typeInfo(LinkMode).@"enum".field_names) |f| {
+            if (s.len == f.len and std.mem.eql(u8, s, f))
+                return @field(LinkMode, f);
         }
         return null;
     }
@@ -352,10 +352,10 @@ test "formatRfc3339" {
 }
 
 test "LinkMode round trips through parse" {
-    inline for (@typeInfo(LinkMode).@"enum".fields) |f| {
-        const m: LinkMode = @enumFromInt(f.value);
-        try std.testing.expectEqualStrings(f.name, m.name());
-        try std.testing.expectEqual(m, LinkMode.parse(f.name).?);
+    inline for (@typeInfo(LinkMode).@"enum".field_names) |f| {
+        const m: LinkMode = @field(LinkMode, f);
+        try std.testing.expectEqualStrings(f, m.name());
+        try std.testing.expectEqual(m, LinkMode.parse(f).?);
     }
     try std.testing.expect(LinkMode.parse("nonsense") == null);
 }

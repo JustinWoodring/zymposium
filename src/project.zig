@@ -300,9 +300,9 @@ const Zoir = std.zig.Zoir;
 pub fn parseDeps(gpa: std.mem.Allocator, text: []const u8) ![]Dep {
     // Ast.parse needs a sentinel-terminated source; zon files are read from
     // disk without one.
-    const owned = try gpa.dupeZ(u8, text);
+    const owned = try gpa.dupeSentinel(u8, text, 0);
     defer gpa.free(owned);
-    var ast = std.zig.Ast.parse(gpa, owned, .zon) catch return error.OutOfMemory;
+    var ast = std.zig.Ast.parse(gpa, owned, .{ .mode = .zon }) catch return error.OutOfMemory;
     defer ast.deinit(gpa);
     if (ast.errors.len > 0) return error.ParseZon;
 
@@ -315,10 +315,10 @@ pub fn parseDeps(gpa: std.mem.Allocator, text: []const u8) ![]Dep {
     errdefer freeDeps(gpa, out.items);
 
     // A package without a dependency table is normal, not malformed.
-    const deps_idx = structField(root_idx.get(zoir), zoir, "dependencies") orelse
+    const deps_idx = structField(root_idx.get(&zoir), zoir, "dependencies") orelse
         return out.toOwnedSlice(gpa);
 
-    const table = switch (deps_idx.get(zoir)) {
+    const table = switch (deps_idx.get(&zoir)) {
         .struct_literal => |s| s,
         .empty_literal => return out.toOwnedSlice(gpa),
         else => return error.ParseZon,
@@ -327,9 +327,9 @@ pub fn parseDeps(gpa: std.mem.Allocator, text: []const u8) ![]Dep {
     // Every string is copied out of Zoir: the Zoir node borrows the parsed
     // source, which is freed before the caller is done with these.
     for (table.names, 0..) |nts, i| {
-        const entry = table.vals.at(@intCast(i)).get(zoir);
+        const entry = table.vals.at(@intCast(i)).get(&zoir);
         const dep = Dep{
-            .name = try gpa.dupe(u8, nts.get(zoir)),
+            .name = try gpa.dupe(u8, nts.get(&zoir)),
             .url = try dupField(gpa, entry, zoir, "url"),
             .path = try dupField(gpa, entry, zoir, "path"),
             .hash = try dupField(gpa, entry, zoir, "hash"),
@@ -365,7 +365,7 @@ fn dupField(gpa: std.mem.Allocator, node: Zoir.Node, zoir: Zoir, name: []const u
 /// Value of a string field, or null when absent or not a string literal.
 fn stringField(node: Zoir.Node, zoir: Zoir, name: []const u8) ?[]const u8 {
     const idx = structField(node, zoir, name) orelse return null;
-    return switch (idx.get(zoir)) {
+    return switch (idx.get(&zoir)) {
         .string_literal => |s| s,
         else => null,
     };
@@ -374,7 +374,7 @@ fn stringField(node: Zoir.Node, zoir: Zoir, name: []const u8) ?[]const u8 {
 /// Value of a boolean field, defaulting to false.
 fn boolField(node: Zoir.Node, zoir: Zoir, name: []const u8) bool {
     const idx = structField(node, zoir, name) orelse return false;
-    return switch (idx.get(zoir)) {
+    return switch (idx.get(&zoir)) {
         .true => true,
         else => false,
     };
@@ -387,7 +387,7 @@ fn structField(node: Zoir.Node, zoir: Zoir, want: []const u8) ?Zoir.Node.Index {
         else => return null,
     };
     for (s.names, 0..) |nts, i| {
-        if (std.mem.eql(u8, nts.get(zoir), want)) return s.vals.at(@intCast(i));
+        if (std.mem.eql(u8, nts.get(&zoir), want)) return s.vals.at(@intCast(i));
     }
     return null;
 }

@@ -21,8 +21,8 @@ pub const Scope = enum {
     both,
 
     pub fn parse(s: []const u8) ?Scope {
-        inline for (@typeInfo(Scope).@"enum".fields) |f| {
-            if (std.mem.eql(u8, s, f.name)) return @enumFromInt(f.value);
+        inline for (@typeInfo(Scope).@"enum".field_names) |f| {
+            if (std.mem.eql(u8, s, f)) return @field(Scope, f);
         }
         return null;
     }

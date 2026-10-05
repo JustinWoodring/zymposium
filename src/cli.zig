@@ -196,7 +196,7 @@ fn eqlAny(s: []const u8, candidates: []const []const u8) bool {
     return false;
 }
 
-pub const version = "0.1.1";
+pub const version = "0.2.0";
 
 pub const usage_text =
     \\zymposium: agent skills for Zig projects and CLI tools

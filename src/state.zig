@@ -57,8 +57,8 @@ pub const SourceKind = enum {
     package,
 
     pub fn parse(s: []const u8) ?SourceKind {
-        inline for (@typeInfo(SourceKind).@"enum".fields) |f| {
-            if (std.mem.eql(u8, s, f.name)) return @enumFromInt(f.value);
+        inline for (@typeInfo(SourceKind).@"enum".field_names) |f| {
+            if (std.mem.eql(u8, s, f)) return @field(SourceKind, f);
         }
         return null;
     }
@@ -493,12 +493,12 @@ test "parse tolerates empty manifests and rejects junk" {
 }
 
 test "ScopeKind and SourceKind round trip through parse" {
-    inline for (@typeInfo(ScopeKind).@"enum".fields) |f| {
-        const k: ScopeKind = @enumFromInt(f.value);
+    inline for (@typeInfo(ScopeKind).@"enum".field_names) |f| {
+        const k: ScopeKind = @field(ScopeKind, f);
         try std.testing.expectEqual(k, ScopeKind.parse(k.name()).?);
     }
-    inline for (@typeInfo(SourceKind).@"enum".fields) |f| {
-        const k: SourceKind = @enumFromInt(f.value);
+    inline for (@typeInfo(SourceKind).@"enum".field_names) |f| {
+        const k: SourceKind = @field(SourceKind, f);
         try std.testing.expectEqual(k, SourceKind.parse(k.name()).?);
     }
     try std.testing.expect(ScopeKind.parse("nope") == null);
