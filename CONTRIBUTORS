@@ -1,0 +1,13 @@
+# Contributors
+
+zymposium is authored and maintained by:
+
+- Justin Woodring <jwoodrg@gmail.com> (@JustinWoodring)
+
+zymposium builds on [zest](https://github.com/JustinWoodring/zest), which stages
+and builds Zig executables and whose install manifest zymposium reads to find
+the skills shipped by installed tools.
+
+Thanks to everyone who has reported issues, suggested features, and helped
+sharpen the tool. Contributions of any size are welcome; see
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.

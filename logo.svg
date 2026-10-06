@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">zymposium</title>
+  <desc id="desc">A skill package branching to three agent nodes</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#17132a"/>
+      <stop offset="1" stop-color="#0c0b14"/>
+    </linearGradient>
+    <linearGradient id="package" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c4b5fd"/>
+      <stop offset="1" stop-color="#7c6cf0"/>
+    </linearGradient>
+    <linearGradient id="wire" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#f0abfc"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="1" y="1" width="62" height="62" rx="17" fill="url(#bg)" stroke="#30294a" stroke-width="1.5"/>
+
+  <!-- A skill package: a folded document inside a soft hexagonal container. -->
+  <path d="M13 18.5 26 11l13 7.5v27L26 53l-13-7.5z" fill="url(#package)"/>
+  <path d="M19 23h14M19 29h11M19 35h14M19 41h9" fill="none" stroke="#211a3b" stroke-linecap="round" stroke-width="2.4"/>
+  <path d="M26 11v8l13-0.5" fill="none" stroke="#e9ddff" stroke-linejoin="round" stroke-width="1.4" opacity=".8"/>
+
+  <!-- One package fans out to three independent agent boundaries. -->
+  <path d="M39 32h5m0-12v24m0-24h5m-5 12h5m-5 12h5" fill="none" stroke="url(#wire)" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4"/>
+  <circle cx="54" cy="20" r="4" fill="#f0abfc"/>
+  <circle cx="54" cy="32" r="4" fill="#c4b5fd"/>
+  <circle cx="54" cy="44" r="4" fill="#8b7cf6"/>
+</svg>
